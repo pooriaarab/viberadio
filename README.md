@@ -1,8 +1,12 @@
 # VibeRadio
 
-**Music that reacts to your code.**
+**Your agent's output as audio.**
 
-Generates ambient lo-fi music that dynamically responds to your coding activity. More commits = upbeat. Errors = dramatic. Idle = chill. Your coding session becomes a soundtrack.
+Turns an agentic coding session into something you can _listen to_ instead of read. Narration is the core — spoken monologue, two-host podcast, or reactive music — so you can follow a Claude Code / Codex / Gemini agent's progress while away from the desk, commuting, or multitasking. Reactive music (below) is one style among several.
+
+**Styles:** spoken monologue · two-host podcast · reactive music (lo-fi, synthwave, ambient, classical, 8-bit).
+**Modes:** ambient stream (narrates live as the agent works) · task summary (one message when a task finishes) · session recap (a longer podcast/musical wrap).
+**Timing:** sync/live (updates as the agent works) or async (after a turn/session) — user-configurable, per-hook. See [`spec.md`](spec.md).
 
 ## Why Build This
 
@@ -37,16 +41,44 @@ Generates ambient lo-fi music that dynamically responds to your coding activity.
 - **skills.sh** — Listed on skills.sh marketplace
 - **macOS menubar app** — Visual controls + now-playing display
 
+## Voices & models (bring your own, mix freely)
+
+Text-to-speech follows the shared `@vibe/core` cascade and is **mix-and-match**: use
+your agent's existing provider if it does audio → or a TTS key you supply
+(ElevenLabs, OpenAI, etc.) → or a **local/on-device voice** so it works with no key
+and no network. Different styles can use different models — e.g. an ElevenLabs voice
+for the monologue, two distinct voices for the podcast hosts, on-device TTS when
+offline. Per-style voice/model selection is a user setting.
+
 ## Tech Stack
 
 - Node.js + TypeScript
-- Tone.js / Web Audio API (music generation)
-- chokidar (file system watching)
-- Claude Code hooks (event detection)
+- TTS: `@vibe/core` cascade (agent provider → BYO key → on-device); Web Speech /
+  system TTS as the local tier
+- Tone.js / Web Audio API (reactive-music style)
+- Claude Code hooks + git/watcher (event detection, via `@vibe/core`)
 - Electron or Tauri (optional desktop app)
+
+## Prototype
+
+Interactive, self-contained UX prototype (no build, no network): open
+[`docs/prototype.html`](docs/prototype.html) in a browser. The "Speak this line"
+button uses your browser's on-device speech synthesis — real, offline narration.
+
+## Local-first
+
+Runs on your own machine. Nothing leaves it unless you opt a flow into a hosted
+provider; the on-device tier works fully offline. Enforced by the `@vibe/core`
+consent model.
+
+## Vibe Suite
+
+Part of the **Vibe Suite** — companion tools for agentic coding CLIs (Claude Code,
+Codex, Cursor, Gemini, Grok, pi, Kimi, and other harnesses). Ships as **CLI + npm
+package + MCP server**.
 
 ## Revenue Potential
 
-- Free tier: basic lo-fi mode
-- Pro: all genres, recording, visualizer, Wrapped
-- Creator tier: OBS integration, custom sound packs
+- Free tier: basic narration + lo-fi mode, on-device voices
+- Pro: all styles, premium voices, recording, visualizer, Wrapped
+- Creator tier: OBS integration, custom sound/voice packs
