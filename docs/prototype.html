@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>viberadio — now playing</title>
+<style>
+  :root{
+    --bg: #0a0b0d;
+    --bg-vignette: radial-gradient(120% 100% at 50% -10%, #14161b 0%, #0a0b0d 55%);
+    --panel: #121319;
+    --panel-2: #16181f;
+    --hairline: rgba(255,255,255,0.07);
+    --text: #ece9e4;
+    --text-dim: #a8a39b;
+    --text-faint: #7c776f;
+    --amber: #ffb454;
+    --amber-dim: #8a6a3a;
+    --teal: #5fe3c4;
+    --magenta: #ff5fa8;
+    --cyan: #57d3ff;
+    --danger: #ff6a5f;
+    --ok: #59d98c;
+    --radius: 14px;
+    --focus: 2px solid #ffb454;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background: var(--bg-vignette), var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100%;
+  }
+
+  button{ font-family: inherit; color: inherit; }
+  :focus-visible{ outline: var(--focus); outline-offset: 2px; }
+
+  .app{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 28px 64px;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{ display:flex; color: var(--amber); }
+  .brand-name{
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  .topbar-status{ display:flex; align-items:center; gap:10px; flex-wrap: wrap; }
+
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background: var(--panel-2);
+    border: none;
+    padding: 7px 12px 7px 10px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .chip:hover{ background: #1c1f28; color: var(--text); }
+  .chip-dot{
+    width: 7px; height:7px; border-radius:50%;
+    background: var(--amber);
+    box-shadow: 0 0 0 3px rgba(255,180,84,0.14);
+    flex-shrink:0;
+  }
+  .chip.is-offline .chip-dot{ background: var(--teal); box-shadow: 0 0 0 3px rgba(95,227,196,0.14); }
+
+  .badge-local{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(89,217,140,0.09);
+    color: #bdeccf;
+    font-size: 12.5px;
+    font-weight: 550;
+  }
+  .badge-dot{
+    width:7px; height:7px; border-radius:50%;
+    background: var(--ok);
+    flex-shrink:0;
+    animation: pulse-dot 2.6s ease-in-out infinite;
+  }
+  @keyframes pulse-dot{
+    0%, 100% { box-shadow: 0 0 0 0 rgba(89,217,140,0.45); }
+    50% { box-shadow: 0 0 0 5px rgba(89,217,140,0); }
+  }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns: 1.7fr 1fr;
+    gap: 20px;
+  }
+  .transcript-panel{ grid-column: 1 / -1; }
+
+  @media (max-width: 880px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .panel{
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .panel-title{
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--text-dim);
+    margin: 0 0 16px;
+  }
+
+  /* ---------- Player ---------- */
+  .track-title{
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    margin: 0 0 4px;
+  }
+  .track-meta{
+    margin: 0 0 20px;
+    font-size: 13px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .viz-wrap{
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0d0e12;
+    margin-bottom: 18px;
+  }
+  canvas#viz{
+    display:block;
+    width: 100%;
+    height: 168px;
+  }
+
+  .transport{
+    display:flex;
+    align-items:center;
+    gap: 14px;
+    margin-bottom: 26px;
+  }
+  .play-btn{
+    width: 42px; height:42px;
+    border-radius: 50%;
+    border: none;
+    background: var(--amber);
+    color: #241705;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    flex-shrink:0;
+    transition: transform .12s ease, background .15s ease;
+  }
+  .play-btn:hover{ transform: scale(1.05); }
+  .play-btn:active{ transform: scale(0.96); }
+  .play-btn svg{ width:16px; height:16px; }
+
+  .time{
+    font-size: 12.5px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+  }
+  .time.time-end{ text-align:right; }
+
+  .scrubber{
+    -webkit-appearance:none;
+    appearance:none;
+    flex:1;
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, var(--amber) var(--progress, 0%), rgba(255,255,255,0.1) 0);
+    cursor: pointer;
+  }
+  .scrubber::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:13px; height:13px;
+    border-radius:50%;
+    background: var(--text);
+    border: 2px solid var(--amber);
+    cursor:pointer;
+  }
+  .scrubber::-moz-range-thumb{
+    width:11px; height:11px;
+    border-radius:50%;
+    background: var(--text);
+    border: 2px solid var(--amber);
+    cursor:pointer;
+  }
+  .scrubber::-moz-range-track{
+    height:4px; border-radius:999px;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .control-row{
+    display:flex;
+    align-items:center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .control-row:last-of-type{ margin-bottom: 0; }
+  .control-label{
+    font-size: 12.5px;
+    color: var(--text-faint);
+    min-width: 46px;
+  }
+
+  .segmented{
+    display:inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: var(--panel-2);
+    padding: 4px;
+    border-radius: 10px;
+  }
+  .seg-btn{
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12.5px;
+    padding: 6px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .seg-btn:hover{ color: var(--text); }
+  .seg-btn.is-active{
+    background: rgba(255,180,84,0.14);
+    color: var(--amber);
+    font-weight: 600;
+  }
+  #styleSwitch .seg-btn.is-active{ background: rgba(255,180,84,0.14); color: var(--amber); }
+  #modeSwitch .seg-btn.is-active{ background: rgba(87,211,255,0.13); color: var(--cyan); }
+
+  /* ---------- Triggers panel ---------- */
+  .trigger-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap: 4px; }
+  .trigger-row{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 2px;
+    border-top: 1px solid var(--hairline);
+  }
+  .trigger-row:first-child{ border-top:none; }
+  .trigger-name{ font-size: 13.5px; }
+  .trigger-hint{ display:block; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+
+  .tri-toggle{
+    display:inline-flex;
+    background: var(--panel-2);
+    padding: 3px;
+    border-radius: 8px;
+    flex-shrink:0;
+  }
+  .tri-toggle button{
+    border:none; background:transparent;
+    font-size: 11.5px;
+    padding: 5px 9px;
+    border-radius: 5px;
+    color: var(--text-faint);
+    cursor:pointer;
+  }
+  .tri-toggle button.is-active[data-val="on"]{ background: rgba(89,217,140,0.18); color: var(--ok); }
+  .tri-toggle button.is-active[data-val="ask"]{ background: rgba(255,180,84,0.18); color: var(--amber); }
+  .tri-toggle button.is-active[data-val="off"]{ background: rgba(255,255,255,0.09); color: var(--text-dim); }
+
+  .triggers-note{
+    margin-top: 18px;
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  /* ---------- Transcript ---------- */
+  .transcript-head{
+    display:flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .speak-btn{
+    border: none;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 550;
+    padding: 8px 14px;
+    border-radius: 9px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    transition: background .15s ease;
+  }
+  .speak-btn:hover:not(:disabled){ background: #1d2029; }
+  .speak-btn:disabled{ color: var(--text-faint); cursor: not-allowed; }
+  .speak-btn.is-speaking{ background: rgba(255,180,84,0.16); color: var(--amber); }
+  .speak-btn svg{ width:13px; height:13px; }
+
+  .transcript{
+    max-height: 260px;
+    overflow-y: auto;
+    display:flex;
+    flex-direction: column;
+    gap: 2px;
+    scroll-behavior: smooth;
+  }
+  .t-line{
+    display:flex;
+    gap: 14px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    color: var(--text-faint);
+    transition: color .25s ease, background .25s ease;
+  }
+  .t-line .t-speaker{
+    flex-shrink:0;
+    width: 58px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-faint);
+  }
+  .t-line .t-text{ font-size: 13.5px; }
+  .t-line.is-music .t-text{ font-style: italic; }
+  .t-line.is-past{ color: var(--text-faint); opacity: 0.55; }
+  .t-line.is-active{
+    background: var(--panel-2);
+    color: var(--text);
+  }
+  .t-line.is-active .t-speaker{ color: var(--amber); }
+  .t-line.is-active.speaker-nova .t-speaker{ color: var(--teal); }
+
+  @media (prefers-reduced-motion: reduce){
+    .badge-dot{ animation: none; }
+    .scrubber{ transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="2.5" y="8" width="19" height="13" rx="2.5" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M7 8 L15 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="16.5" cy="14.5" r="3.2" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="6.5" cy="14.5" r="1.1" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="brand-name">viberadio</span>
+    </div>
+    <div class="topbar-status">
+      <button class="chip" id="modelChip" type="button" title="Click to see how viberadio picks its narration model">
+        <span class="chip-dot" aria-hidden="true"></span>
+        <span id="modelChipLabel">🔊 using your OpenAI key</span>
+      </button>
+      <div class="badge-local" title="All narration, transcripts and audio are generated on this machine. Nothing is uploaded.">
+        <span class="badge-dot" aria-hidden="true"></span>
+        <span>local · no data out</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <!-- Now playing -->
+    <section class="panel panel-player" aria-label="Now playing">
+      <h1 class="track-title" id="trackTitle">Task recap · auth middleware refactor</h1>
+      <p class="track-meta" id="trackMeta">auth-service · PR #42</p>
+
+      <div class="viz-wrap">
+        <canvas id="viz"></canvas>
+      </div>
+
+      <div class="transport">
+        <button class="play-btn" id="playBtn" aria-label="Pause" aria-pressed="true">
+          <svg id="playIcon" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2 L14 8 L3 14 Z"/></svg>
+        </button>
+        <span class="time" id="elapsedTime">0:00</span>
+        <input type="range" class="scrubber" id="scrubber" min="0" max="1000" value="0" aria-label="Seek within track">
+        <span class="time time-end" id="durationTime">0:00</span>
+      </div>
+
+      <div class="control-row">
+        <span class="control-label">Style</span>
+        <div class="segmented" id="styleSwitch" role="group" aria-label="Narration style">
+          <button class="seg-btn is-active" data-style="monologue">Monologue</button>
+          <button class="seg-btn" data-style="podcast">Two-host podcast</button>
+          <button class="seg-btn" data-style="lofi">Lo-fi</button>
+          <button class="seg-btn" data-style="synthwave">Synthwave</button>
+          <button class="seg-btn" data-style="ambient">Ambient</button>
+        </div>
+      </div>
+
+      <div class="control-row">
+        <span class="control-label">Mode</span>
+        <div class="segmented" id="modeSwitch" role="group" aria-label="Output mode">
+          <button class="seg-btn" data-mode="ambientstream">Ambient stream</button>
+          <button class="seg-btn is-active" data-mode="summary">Task summary</button>
+          <button class="seg-btn" data-mode="sessionpodcast">Session podcast</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Triggers -->
+    <aside class="panel panel-triggers" aria-label="Generation triggers">
+      <h2 class="panel-title">Triggers</h2>
+      <ul class="trigger-list" id="triggerList">
+        <li class="trigger-row">
+          <span class="trigger-name">PR opened<span class="trigger-hint">Auto-generate a podcast recap</span></span>
+          <div class="tri-toggle" data-trigger="pr">
+            <button data-val="on" class="is-active">On</button><button data-val="ask">Ask</button><button data-val="off">Off</button>
+          </div>
+        </li>
+        <li class="trigger-row">
+          <span class="trigger-name">Task done<span class="trigger-hint">Confirm before narrating</span></span>
+          <div class="tri-toggle" data-trigger="done">
+            <button data-val="on">On</button><button data-val="ask" class="is-active">Ask</button><button data-val="off">Off</button>
+          </div>
+        </li>
+        <li class="trigger-row">
+          <span class="trigger-name">Error hit<span class="trigger-hint">Stay silent on failures</span></span>
+          <div class="tri-toggle" data-trigger="error">
+            <button data-val="on">On</button><button data-val="ask">Ask</button><button data-val="off" class="is-active">Off</button>
+          </div>
+        </li>
+      </ul>
+      <p class="triggers-note">These hook generation to milestones in your session — nothing plays until a trigger fires or you press play.</p>
+    </aside>
+
+    <!-- Transcript -->
+    <section class="panel transcript-panel" aria-label="Transcript">
+      <div class="transcript-head">
+        <h2 class="panel-title" style="margin:0;">Transcript</h2>
+        <button class="speak-btn" id="speakBtn" type="button">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 6h2.6L8 3v10L4.6 10H2z"/><path d="M10.2 5.2a4 4 0 0 1 0 5.6" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg>
+          <span id="speakBtnLabel">Speak this line</span>
+        </button>
+      </div>
+      <div class="transcript" id="transcript"></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Content ----------
+  // Each mode carries the same events told two ways: `narration` (single
+  // narrator / used verbatim as music-mode captions + speech text) and
+  // `dialogue` (two-host phrasing). Style picks which one renders.
+  var MODES = {
+    summary: {
+      title: "Task recap · auth middleware refactor",
+      meta: "auth-service · PR #42",
+      narration: [
+        "Opened auth.ts to check the token verification path.",
+        "Found it — the expiry check used < instead of <=. Tokens died one tick early.",
+        "Patched the comparison and added a boundary test.",
+        "Ran the suite. 42 passed, 0 failed.",
+        "Opened PR #42 — fix: correct off-by-one in token expiry check."
+      ],
+      dialogue: [
+        {speaker:"Ari", text:"So what happened in auth.ts?"},
+        {speaker:"Nova", text:"The expiry check was using less-than instead of less-than-or-equal."},
+        {speaker:"Ari", text:"Off by one tick. Classic."},
+        {speaker:"Nova", text:"Fixed it, added a boundary test — suite's green, 42 passing."},
+        {speaker:"Ari", text:"And it's already up as PR 42."}
+      ]
+    },
+    ambientstream: {
+      title: "Live · watching auth-service",
+      meta: "auth-service · streaming now",
+      narration: [
+        "14:02 — reading auth.ts",
+        "14:03 — tracing the token expiry branch",
+        "14:05 — bug found: boundary condition",
+        "14:07 — writing the fix",
+        "14:09 — tests running",
+        "14:10 — 42 green",
+        "14:11 — PR #42 opened"
+      ],
+      dialogue: [
+        {speaker:"Ari", text:"Looks like it's in auth.ts right now."},
+        {speaker:"Nova", text:"Tracing the expiry branch, yeah."},
+        {speaker:"Ari", text:"There — boundary condition."},
+        {speaker:"Nova", text:"Writing the fix as we speak."},
+        {speaker:"Ari", text:"Tests are running."},
+        {speaker:"Nova", text:"42 green."},
+        {speaker:"Ari", text:"And PR 42 just went up."}
+      ]
+    },
+    sessionpodcast: {
+      title: "Session recap · Tuesday's refactor sprint",
+      meta: "auth-service · 3 chapters",
+      narration: [
+        "Chapter one: the auth service had a quiet bug for two weeks.",
+        "The token expiry check compared with < instead of <=.",
+        "That meant valid tokens got rejected exactly on the expiry second.",
+        "Chapter two: the fix. One character, one new test.",
+        "The full suite ran clean — 42 passing, 0 failing.",
+        "Chapter three: shipped. PR #42 merged same afternoon."
+      ],
+      dialogue: [
+        {speaker:"Ari", text:"Let's talk about Tuesday's refactor sprint."},
+        {speaker:"Nova", text:"Started with a quiet bug in the auth service — two weeks old."},
+        {speaker:"Ari", text:"The expiry check was using less-than instead of less-than-or-equal."},
+        {speaker:"Nova", text:"So valid tokens got rejected right at the expiry second."},
+        {speaker:"Ari", text:"The fix was tiny — one character, one new test."},
+        {speaker:"Nova", text:"Suite ran clean, 42 passing, and it shipped that afternoon."}
+      ]
+    }
+  };
+
+  var MUSIC_STYLES = { lofi:1, synthwave:1, ambient:1 };
+  var STYLE_COLOR = {
+    monologue: "#ffb454",
+    podcast: "#ffb454",
+    lofi: "#e8b473",
+    synthwave: "#ff5fa8",
+    ambient: "#5fe3c4"
+  };
+
+  var state = {
+    style: "monologue",
+    mode: "summary",
+    playing: true,
+    elapsed: 0,
+    activeLine: -1,
+    modelTierIndex: 0
+  };
+
+  var MODEL_TIERS = [
+    {label: "🔊 using your OpenAI key", offline:false},
+    {label: "🔊 on-device · offline", offline:true}
+  ];
+
+  var lines = [];       // {speaker, text, speak, isMusic}
+  var durations = [];
+  var starts = [];
+  var totalDuration = 0;
+
+  // ---------- DOM ----------
+  var trackTitle = document.getElementById("trackTitle");
+  var trackMeta = document.getElementById("trackMeta");
+  var playBtn = document.getElementById("playBtn");
+  var playIcon = document.getElementById("playIcon");
+  var scrubber = document.getElementById("scrubber");
+  var elapsedTimeEl = document.getElementById("elapsedTime");
+  var durationTimeEl = document.getElementById("durationTime");
+  var transcriptEl = document.getElementById("transcript");
+  var speakBtn = document.getElementById("speakBtn");
+  var speakBtnLabel = document.getElementById("speakBtnLabel");
+  var modelChip = document.getElementById("modelChip");
+  var modelChipLabel = document.getElementById("modelChipLabel");
+  var styleSwitch = document.getElementById("styleSwitch");
+  var modeSwitch = document.getElementById("modeSwitch");
+  var canvas = document.getElementById("viz");
+  var ctx = canvas.getContext("2d");
+
+  var PLAY_PATH = "M3 2 L14 8 L3 14 Z";
+  var PAUSE_PATH = "M3 2h3v12H3zM10 2h3v12h-3z";
+
+  // ---------- Build lines for current mode/style ----------
+  function buildLines(){
+    var mode = MODES[state.mode];
+    var isMusic = !!MUSIC_STYLES[state.style];
+    var out = [];
+    if (state.style === "podcast"){
+      mode.dialogue.forEach(function(d){
+        out.push({ speaker: d.speaker, text: d.text, speak: d.text, isMusic:false });
+      });
+    } else if (isMusic) {
+      mode.narration.forEach(function(t){
+        out.push({ speaker: "♪", text: t, speak: t, isMusic:true });
+      });
+    } else {
+      mode.narration.forEach(function(t){
+        out.push({ speaker: "Vibe", text: t, speak: t, isMusic:false });
+      });
+    }
+    return out;
+  }
+
+  function durationFor(text){
+    return Math.max(1.8, Math.min(6, text.length * 0.05));
+  }
+
+  function rebuildTranscript(preserveElapsed){
+    lines = buildLines();
+    durations = lines.map(function(l){ return durationFor(l.text); });
+    starts = [];
+    var acc = 0;
+    durations.forEach(function(d){ starts.push(acc); acc += d; });
+    totalDuration = acc;
+
+    trackTitle.textContent = MODES[state.mode].title;
+    trackMeta.textContent = MODES[state.mode].meta;
+    durationTimeEl.textContent = fmtTime(totalDuration);
+
+    transcriptEl.innerHTML = "";
+    lines.forEach(function(l, i){
+      var row = document.createElement("div");
+      row.className = "t-line" + (l.isMusic ? " is-music" : "") + (l.speaker === "Nova" ? " speaker-nova" : "");
+      row.dataset.index = i;
+      var sp = document.createElement("span");
+      sp.className = "t-speaker";
+      sp.textContent = l.speaker;
+      var tx = document.createElement("span");
+      tx.className = "t-text";
+      tx.textContent = l.text;
+      row.appendChild(sp);
+      row.appendChild(tx);
+      transcriptEl.appendChild(row);
+    });
+
+    if (!preserveElapsed){ state.elapsed = 0; }
+    state.activeLine = -1;
+    updateActiveLine(true);
+  }
+
+  function fmtTime(s){
+    s = Math.max(0, s);
+    var m = Math.floor(s / 60);
+    var r = Math.floor(s % 60);
+    return m + ":" + (r < 10 ? "0" : "") + r;
+  }
+
+  function updateActiveLine(force){
+    var idx = 0;
+    for (var i = 0; i < starts.length; i++){
+      if (state.elapsed >= starts[i]) idx = i;
+    }
+    if (idx !== state.activeLine || force){
+      state.activeLine = idx;
+      var rows = transcriptEl.children;
+      for (var j = 0; j < rows.length; j++){
+        rows[j].classList.toggle("is-active", j === idx);
+        rows[j].classList.toggle("is-past", j < idx);
+      }
+      var activeEl = rows[idx];
+      if (activeEl){
+        var top = activeEl.offsetTop;
+        var bottom = top + activeEl.offsetHeight;
+        if (top < transcriptEl.scrollTop || bottom > transcriptEl.scrollTop + transcriptEl.clientHeight){
+          activeEl.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      }
+    }
+  }
+
+  // ---------- Transport ----------
+  function setPlaying(playing){
+    state.playing = playing;
+    playIcon.parentNode.setAttribute("aria-label", playing ? "Pause" : "Play");
+    playIcon.parentNode.setAttribute("aria-pressed", String(playing));
+    playIcon.innerHTML = "";
+    var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", playing ? PAUSE_PATH : PLAY_PATH);
+    playIcon.appendChild(p);
+  }
+
+  playBtn.addEventListener("click", function(){
+    setPlaying(!state.playing);
+  });
+
+  scrubber.addEventListener("input", function(){
+    if (totalDuration <= 0) return;
+    state.elapsed = (scrubber.value / 1000) * totalDuration;
+    updateActiveLine();
+    renderTime();
+  });
+
+  function renderTime(){
+    elapsedTimeEl.textContent = fmtTime(state.elapsed);
+    var pct = totalDuration > 0 ? (state.elapsed / totalDuration) * 100 : 0;
+    scrubber.style.setProperty("--progress", pct + "%");
+    scrubber.value = totalDuration > 0 ? (state.elapsed / totalDuration) * 1000 : 0;
+  }
+
+  // ---------- Style / mode switching ----------
+  function setActiveSeg(container, attr, value){
+    Array.prototype.forEach.call(container.querySelectorAll(".seg-btn"), function(btn){
+      btn.classList.toggle("is-active", btn.dataset[attr] === value);
+    });
+  }
+
+  styleSwitch.addEventListener("click", function(e){
+    var btn = e.target.closest(".seg-btn");
+    if (!btn) return;
+    state.style = btn.dataset.style;
+    setActiveSeg(styleSwitch, "style", state.style);
+    rebuildTranscript(false);
+    renderTime();
+  });
+
+  modeSwitch.addEventListener("click", function(e){
+    var btn = e.target.closest(".seg-btn");
+    if (!btn) return;
+    state.mode = btn.dataset.mode;
+    setActiveSeg(modeSwitch, "mode", state.mode);
+    rebuildTranscript(false);
+    renderTime();
+  });
+
+  // ---------- Triggers (visual state only — demonstrates the hook, no live effect) ----------
+  document.getElementById("triggerList").addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-val]");
+    if (!btn) return;
+    var group = btn.parentNode;
+    Array.prototype.forEach.call(group.children, function(b){ b.classList.remove("is-active"); });
+    btn.classList.add("is-active");
+  });
+
+  // ---------- Model preference cascade chip ----------
+  modelChip.addEventListener("click", function(){
+    state.modelTierIndex = (state.modelTierIndex + 1) % MODEL_TIERS.length;
+    var tier = MODEL_TIERS[state.modelTierIndex];
+    modelChipLabel.textContent = tier.label;
+    modelChip.classList.toggle("is-offline", tier.offline);
+  });
+
+  // ---------- Speech synthesis (real, local, offline) ----------
+  var speechAvailable = "speechSynthesis" in window;
+  var voices = [];
+  function loadVoices(){ voices = window.speechSynthesis.getVoices(); }
+  if (speechAvailable){
+    loadVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+  } else {
+    speakBtn.disabled = true;
+    speakBtnLabel.textContent = "Speech unavailable in this browser";
+    speakBtn.title = "window.speechSynthesis isn't supported here.";
+  }
+
+  function pickVoice(speaker){
+    if (!voices.length) return null;
+    var pool = voices.filter(function(v){ return v.lang && v.lang.indexOf("en") === 0; });
+    if (!pool.length) pool = voices;
+    if (speaker === "Nova" && pool.length > 1) return pool[1];
+    return pool[0];
+  }
+
+  speakBtn.addEventListener("click", function(){
+    if (!speechAvailable) return;
+    var line = lines[state.activeLine];
+    if (!line) return;
+    window.speechSynthesis.cancel();
+    var utter = new SpeechSynthesisUtterance(line.speak);
+    var v = pickVoice(line.speaker);
+    if (v) utter.voice = v;
+    utter.rate = 1;
+    utter.onstart = function(){
+      speakBtn.classList.add("is-speaking");
+      speakBtnLabel.textContent = "Speaking…";
+    };
+    utter.onend = function(){
+      speakBtn.classList.remove("is-speaking");
+      speakBtnLabel.textContent = "Speak this line";
+    };
+    window.speechSynthesis.speak(utter);
+  });
+
+  // ---------- Visualizer ----------
+  var dpr = window.devicePixelRatio || 1;
+  var currentAmp = 0.15;
+  var lastTs = null;
+
+  function fitCanvas(){
+    var rect = canvas.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, rect.width * dpr);
+    canvas.height = Math.max(1, rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", fitCanvas);
+
+  function drawBars(w, h, t, amp, count, color, opts){
+    opts = opts || {};
+    var gap = opts.gap || 3;
+    var barW = (w / count) - gap;
+    var midY = h / 2;
+    ctx.fillStyle = color;
+    for (var i = 0; i < count; i++){
+      var phase = i * 0.55;
+      var wob = Math.sin(t * (opts.speed || 2.2) + phase) * 0.5 + Math.sin(t * (opts.speed2 || 4.1) + phase * 1.7) * 0.5;
+      var bh = Math.max(2, (Math.abs(wob) * amp) * (h * (opts.scale || 0.42)));
+      var x = i * (barW + gap);
+      var r = Math.min(barW / 2, 3);
+      roundRect(x, midY - bh, barW, bh * 2, r);
+      ctx.fill();
+    }
+  }
+
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawViz(t){
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    var target = state.playing ? 1 : 0.16;
+    currentAmp += (target - currentAmp) * 0.06;
+
+    if (state.style === "monologue"){
+      drawBars(w, h, t, currentAmp, 44, "#ffb454", { speed: 2.0, scale: 0.4 });
+    } else if (state.style === "podcast"){
+      var weightA = (Math.sin(t * 0.55) + 1) / 2;
+      var weightB = 1 - weightA;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      drawBars(w, h * 2, t, currentAmp * (0.35 + weightA * 0.65), 40, "#ffb454", { speed: 2.4, scale: 0.5 });
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.translate(0, 0);
+      drawBars(w, h * 2, t + 1.7, currentAmp * (0.35 + weightB * 0.65), 40, "#5fe3c4", { speed: 2.1, scale: 0.28 });
+      ctx.restore();
+    } else if (state.style === "lofi"){
+      drawBars(w, h, t, currentAmp, 22, "#e8b473", { speed: 1.1, speed2: 1.7, scale: 0.36, gap: 6 });
+      ctx.fillStyle = "rgba(232,180,115,0.05)";
+      ctx.fillRect(0, 0, w, h);
+    } else if (state.style === "synthwave"){
+      // horizon grid
+      ctx.strokeStyle = "rgba(255,95,168,0.18)";
+      ctx.lineWidth = 1;
+      var midY = h * 0.62;
+      for (var g = 1; g <= 6; g++){
+        var yy = midY + g * g * 2.2;
+        ctx.beginPath();
+        ctx.moveTo(0, yy);
+        ctx.lineTo(w, yy);
+        ctx.stroke();
+      }
+      ctx.save();
+      ctx.shadowColor = "#ff5fa8";
+      ctx.shadowBlur = 10;
+      drawBars(w, h, t, currentAmp, 56, "#ff5fa8", { speed: 3.4, speed2: 5.2, scale: 0.4, gap: 2 });
+      ctx.restore();
+      ctx.save();
+      ctx.shadowColor = "#57d3ff";
+      ctx.shadowBlur = 8;
+      ctx.globalAlpha = 0.5;
+      drawBars(w, h, t + 0.6, currentAmp * 0.7, 56, "#57d3ff", { speed: 3.1, speed2: 4.6, scale: 0.28, gap: 2 });
+      ctx.restore();
+    } else if (state.style === "ambient"){
+      var blobs = 4;
+      for (var b = 0; b < blobs; b++){
+        var bx = w * (0.15 + b * 0.24) + Math.sin(t * 0.15 + b) * 20;
+        var by = h * 0.5 + Math.cos(t * 0.12 + b * 1.3) * (h * 0.18);
+        var rad = (h * 0.22) * (0.6 + currentAmp * 0.6) + Math.sin(t * 0.3 + b) * 6;
+        var grad = ctx.createRadialGradient(bx, by, 0, bx, by, rad);
+        grad.addColorStop(0, "rgba(95,227,196,0.28)");
+        grad.addColorStop(1, "rgba(95,227,196,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(bx, by, rad, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function tick(ts){
+    if (lastTs === null) lastTs = ts;
+    var dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+    dt = Math.min(dt, 0.1);
+
+    if (state.playing && totalDuration > 0){
+      state.elapsed += dt;
+      if (state.elapsed >= totalDuration){
+        state.elapsed = 0;
+      }
+      updateActiveLine();
+      renderTime();
+    }
+
+    drawViz(ts / 1000);
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Init ----------
+  fitCanvas();
+  rebuildTranscript(false);
+  renderTime();
+  setPlaying(true);
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
