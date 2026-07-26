@@ -1,5 +1,5 @@
 {
-  "name": "@pooriaarab/viberadio",
+  "name": "viberadio-cli",
   "version": "0.1.0",
   "description": "Your agent's output as audio — spoken narration, monologue, two-host podcast, or reactive music. For Claude Code, Codex, Gemini, and other agentic CLIs. Local-first.",
   "type": "module",
