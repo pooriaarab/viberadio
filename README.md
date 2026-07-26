@@ -11,7 +11,7 @@ Turns an agentic coding session into something you can _listen to_ instead of re
 ## Quick start
 
 ```sh
-npm i -g vibe-radio
+npm i -g viberadio-fm
 ```
 
 ```sh
@@ -29,7 +29,7 @@ cascade later; the `createNarrator()` seam is already there.
 Use it as a **library** too:
 
 ```ts
-import { narrate, recap, buildRecapScript } from 'vibe-radio';
+import { narrate, recap, buildRecapScript } from 'viberadio-fm';
 
 await narrate('build passed');                              // speaks via on-device TTS
 const { script } = await recap(events, { style: 'podcast' }); // script + speak a session
@@ -77,7 +77,7 @@ mid-session. Add it to your client's MCP config:
 ## Distribution
 
 - **CLI** — `viberadio start` — runs in background, hooks into git/terminal events
-- **npm package** — `npm install -g vibe-radio`
+- **npm package** — `npm install -g viberadio-fm`
 - **Claude Code hook** — Auto-starts when Claude Code session begins
 - **Claude Code skill** — `/viberadio` to control playback
 - **skills.sh** — Listed on skills.sh marketplace
