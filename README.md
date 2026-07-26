@@ -8,6 +8,48 @@ Turns an agentic coding session into something you can _listen to_ instead of re
 **Modes:** ambient stream (narrates live as the agent works) · task summary (one message when a task finishes) · session recap (a longer podcast/musical wrap).
 **Timing:** sync/live (updates as the agent works) or async (after a turn/session) — user-configurable, per-hook. See [`spec.md`](spec.md).
 
+## Quick start
+
+```sh
+npm i -g @pooriaarab/viberadio
+```
+
+```sh
+viberadio say "hello"                       # narrate a line now (on-device, offline)
+viberadio recap session.json                 # build a script from session events and speak it
+viberadio recap session.json --style podcast  # two-host podcast style
+```
+
+**Works offline, on-device, with zero keys.** v0 routes all narration through the
+on-device tier of the shared `@pooriaarab/vibe-core` model cascade — macOS `say` /
+Linux `espeak` / `spd-say` — so it runs with nothing configured and nothing leaves
+your machine. Bring-your-own-key TTS (ElevenLabs, OpenAI, …) plugs into the same
+cascade later; the `createNarrator()` seam is already there.
+
+Use it as a **library** too:
+
+```ts
+import { narrate, recap, buildRecapScript } from '@pooriaarab/viberadio';
+
+await narrate('build passed');                              // speaks via on-device TTS
+const { script } = await recap(events, { style: 'podcast' }); // script + speak a session
+buildRecapScript(events);                                   // pure: events -> script, no audio
+```
+
+### MCP
+
+`viberadio mcp` starts a stdio MCP server exposing `narrate({ text, style? })` and
+`recap({ events, style?, mode? })` tools, so an agent can ask for an audio recap
+mid-session. Add it to your client's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "viberadio": { "command": "viberadio", "args": ["mcp"] }
+  }
+}
+```
+
 ## Why Build This
 
 - Developers already listen to lo-fi while coding — this makes it reactive and personal
@@ -35,7 +77,7 @@ Turns an agentic coding session into something you can _listen to_ instead of re
 ## Distribution
 
 - **CLI** — `viberadio start` — runs in background, hooks into git/terminal events
-- **npm package** — `npm install -g viberadio`
+- **npm package** — `npm install -g @pooriaarab/viberadio`
 - **Claude Code hook** — Auto-starts when Claude Code session begins
 - **Claude Code skill** — `/viberadio` to control playback
 - **skills.sh** — Listed on skills.sh marketplace
