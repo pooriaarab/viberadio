@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>viberadio — launch (16:9)</title>
+<style>
+  /* ============ palette ============ */
+  :root{
+    --bg: #0a0b0d;
+    --hairline: rgba(255,255,255,0.07);
+    --text: #f1ede6;
+    --text-dim: #b8b1a6;
+    --text-faint: #8a8275;
+    --amber: #ffb454;
+    --amber-deep: #d98a2b;
+    --teal: #5fe3c4;
+    --magenta: #ff5fa8;
+    --ok: #59d98c;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* ============ stage + fixed 1920x1080 frame (scale-to-fit) ============ */
+  .stage{
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(120% 90% at 50% 38%, #1c160e 0%, #0a0b0d 60%, #060607 100%);
+  }
+  .frame{
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    flex: none;
+  }
+  /* warm pulsing halo behind console, driven by --energy */
+  .halo{
+    position:absolute;
+    left:50%; top:45%;
+    width: 1500px;
+    height: 850px;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(closest-side, rgba(255,180,84,0.20), rgba(255,180,84,0.05) 55%, transparent 72%);
+    opacity: calc(0.35 + 0.5 * var(--energy, 0.4));
+    filter: blur(8px);
+    pointer-events:none;
+    transition: opacity .25s ease;
+  }
+
+  .scene{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    will-change: opacity, transform, filter;
+  }
+
+  /* ============ scene A — the unreadable wall ============ */
+  .scene-a{ flex-direction: column; gap: 44px; }
+  .term{
+    width: 900px;
+    height: 340px;
+    background: #0c0d10;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 34px 90px -32px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.02);
+  }
+  .term-bar{
+    height: 28px;
+    display:flex; align-items:center; gap:8px;
+    padding: 0 12px;
+    background: #15161b;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .term-bar i{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .term-bar i:nth-child(1){ background:#ff5f5f; }
+  .term-bar i:nth-child(2){ background:#ffb454; }
+  .term-bar i:nth-child(3){ background:#59d98c; }
+  .term-bar span{ margin-left:9px; font-size:12px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+  .term-body{
+    position:absolute; top:28px; left:0; right:0; bottom:0;
+    padding: 14px 18px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #6f7682;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 78%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, #000 16%, #000 78%, transparent 100%);
+    overflow: hidden;
+  }
+  .term-body .ln{ white-space: nowrap; }
+  .term-body .ln .add{ color: var(--ok); }
+  .term-body .ln .del{ color: #d97070; }
+  .term-body .ln .mut{ color: var(--amber); }
+  .term-body .ln .ok{ color: var(--teal); }
+  .term-cursor{
+    display:inline-block; width:8px; height:1.05em;
+    background: var(--amber); vertical-align: -2px;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .hook{ text-align:center; }
+  .hook h1{
+    margin:0;
+    font-size: 54px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.12;
+    color: var(--text);
+  }
+  .hook h1 .mute{ color: var(--text-faint); }
+  .hook h1 .em{ color: var(--amber); }
+  .hook p{
+    margin: 16px 0 0;
+    font-size: 22px;
+    color: var(--text-dim);
+    letter-spacing: -0.01em;
+  }
+
+  /* ============ scene B — the console ============ */
+  .console{
+    width: 1180px;
+    background: linear-gradient(180deg, #1a1c22 0%, #141519 100%);
+    border: 1px solid rgba(255,180,84,0.14);
+    border-radius: 24px;
+    padding: 36px 44px;
+    box-shadow:
+      0 50px 120px -40px rgba(0,0,0,0.9),
+      0 0 0 1px rgba(255,255,255,0.03) inset;
+    position: relative;
+    overflow: hidden;
+  }
+  /* subtle top sheen */
+  .console::before{
+    content:"";
+    position:absolute; inset:0 0 auto 0; height:38%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), transparent);
+    pointer-events:none;
+  }
+
+  .row-top{
+    display:flex; align-items:center; justify-content:space-between;
+    gap: 16px; position: relative;
+  }
+  .reels{ display:flex; gap: 14px; }
+  .reel{
+    width: 48px; aspect-ratio:1;
+    border-radius:50%;
+    background: radial-gradient(circle at 50% 50%, #2a2c34 0 32%, #18191e 33%);
+    border: 1px solid rgba(255,255,255,0.08);
+    position:relative;
+    animation: spin 1.6s linear infinite;
+    animation-duration: calc(1.8s / (0.5 + var(--energy, 0.4)));
+  }
+  .reel::after{ /* hub */
+    content:""; position:absolute; left:50%; top:50%; width:26%; height:26%;
+    transform: translate(-50%,-50%); border-radius:50%;
+    background: #ffb454; box-shadow: 0 0 8px rgba(255,180,84,0.7);
+  }
+  .reel i{
+    position:absolute; left:50%; top:50%; width:12%; height:12%;
+    background: rgba(255,255,255,0.22); border-radius:50%;
+    transform-origin: 0 0;
+  }
+  .reel i:nth-child(1){ transform: rotate(0deg)   translate(120%, -50%); }
+  .reel i:nth-child(2){ transform: rotate(60deg)  translate(120%, -50%); }
+  .reel i:nth-child(3){ transform: rotate(120deg) translate(120%, -50%); }
+  .reel i:nth-child(4){ transform: rotate(180deg) translate(120%, -50%); }
+  .reel i:nth-child(5){ transform: rotate(240deg) translate(120%, -50%); }
+  .reel i:nth-child(6){ transform: rotate(300deg) translate(120%, -50%); }
+  @keyframes spin{ to { transform: rotate(360deg); } }
+
+  .nowplaying{ text-align:center; flex:1; }
+  .nowplaying .label{
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    color: var(--text-faint);
+    font-weight: 600;
+  }
+  .nowplaying .title{
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-top: 3px;
+    color: var(--text);
+  }
+  .nowplaying .title .wave{ color: var(--amber); }
+
+  .onair{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size: 11px; letter-spacing:0.28em; font-weight:700;
+    color: #ff6a5f;
+    padding: 7px 12px; border-radius: 999px;
+    background: rgba(255,106,95,0.08);
+    border: 1px solid rgba(255,106,95,0.25);
+    white-space: nowrap;
+  }
+  .onair .dot{
+    width:8px; height:8px; border-radius:50%; background:#ff6a5f;
+    box-shadow: 0 0 10px rgba(255,106,95,0.9);
+    animation: onairpulse 1.3s ease-in-out infinite;
+  }
+  @keyframes onairpulse{ 0%,100%{ opacity:1; transform:scale(1);} 50%{ opacity:.35; transform:scale(.8);} }
+
+  /* hero waveform */
+  .wave-wrap{
+    margin: 24px 0 14px;
+    position: relative;
+  }
+  canvas#wave{ display:block; width:100%; height: 170px; }
+
+  /* EQ bars */
+  .eq{
+    display:flex; align-items:flex-end; justify-content:center; gap: 4px;
+    height: 52px;
+    margin-bottom: 22px;
+  }
+  .eq span{
+    width: 6px;
+    background: linear-gradient(180deg, var(--amber), var(--amber-deep));
+    border-radius: 2px;
+    height: 30%;
+    transform-origin: bottom;
+    transform: scaleY(calc(0.4 + 1.6 * var(--boost, 0)));
+    animation: eq 0.7s ease-in-out infinite alternate;
+  }
+  .eq span.t{ background: linear-gradient(180deg, var(--teal), #2fa78a); }
+  .eq span.m{ background: linear-gradient(180deg, var(--magenta), #b03a6d); }
+  @keyframes eq{
+    from{ transform: scaleY(calc(0.25 + 1.0 * var(--boost, 0))); }
+    to  { transform: scaleY(calc(0.9 + 1.9 * var(--boost, 0))); }
+  }
+
+  /* dial — three stacked bands: labels / needle+track / frequency.
+     Bands never share vertical space, so nothing can overlap. */
+  .dial{
+    position: relative;
+    height: 80px;
+  }
+  .stations{
+    position:absolute; left:2px; right:2px; top:0;
+    display:flex; justify-content:space-between;
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0.16em;
+    color: var(--text-faint);
+    font-weight: 600;
+  }
+  .stations b{ font-weight:600; transition: color .3s, text-shadow .3s; }
+  .stations b.on{ color: var(--amber); text-shadow: 0 0 8px rgba(255,180,84,0.7); }
+  .dial-track{
+    position:absolute; left:0; right:0; top: 36px; height: 4px;
+    border-radius: 999px;
+    background: repeating-linear-gradient(90deg, rgba(255,255,255,0.16) 0 1px, transparent 1px 9px),
+                linear-gradient(90deg, rgba(255,180,84,0.05), rgba(255,180,84,0.18), rgba(255,180,84,0.05));
+  }
+  .dial-needle{
+    position:absolute; top: 22px; height: 34px; width: 3px;
+    background: var(--amber);
+    border-radius: 2px;
+    box-shadow: 0 0 10px rgba(255,180,84,0.9), 0 0 22px rgba(255,180,84,0.5);
+    transform: translateX(-50%);
+    left: 50%;
+  }
+  .dial-needle::after{
+    content:""; position:absolute; left:50%; top:-6px; transform:translateX(-50%);
+    border-left:5px solid transparent; border-right:5px solid transparent;
+    border-top:7px solid var(--amber);
+    filter: drop-shadow(0 0 4px rgba(255,180,84,0.8));
+  }
+  .freq{
+    position:absolute; right:2px; top: 60px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--teal);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* DJ caption */
+  .caption{
+    margin-top: 10px;
+    text-align:center;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    min-height: 1.4em;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .caption.swap{ opacity:0; transform: translateY(6px); }
+  .caption .accent{ color: var(--amber); }
+
+  /* ============ scene C — end card ============ */
+  .scene-c{ flex-direction:column; text-align:center; }
+  .mark{
+    display:inline-flex; align-items:center;
+    color: var(--amber);
+    margin-bottom: 14px;
+  }
+  .mark svg{ width: 48px; height: auto; filter: drop-shadow(0 0 10px rgba(255,180,84,0.6)); }
+  .wordmark{
+    margin: 0;
+    font-size: 120px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--text);
+  }
+  .wordmark .radio{ color: var(--amber); }
+  .tagline{
+    margin: 18px 0 0;
+    font-size: 27px;
+    font-weight: 500;
+    color: var(--text-dim);
+    letter-spacing: -0.01em;
+  }
+  .tagline .pulse{ color: var(--teal); }
+  .install{
+    margin: 48px auto 0;
+    display:inline-flex; align-items:center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 19px;
+    background: #0c0d10;
+    border: 1px solid rgba(255,180,84,0.28);
+    border-radius: 12px;
+    padding: 15px 20px;
+    color: var(--text);
+    box-shadow: 0 12px 40px -12px rgba(0,0,0,0.7), 0 0 30px -10px rgba(255,180,84,0.4), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    white-space: nowrap;
+  }
+  .install .prompt{ color: var(--amber); margin-right: 10px; }
+  .install .pkg{ color: var(--teal); }
+  .install .cmd{ color: var(--text); }
+  .install .cur{
+    display:inline-block; width:9px; height:1.05em; background: var(--amber);
+    vertical-align:-2px; margin-left:3px; animation: blink 1s steps(1) infinite;
+  }
+  .suite{
+    margin-top: 36px;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 600;
+    display:inline-flex; align-items:center; gap:9px;
+  }
+  .suite .eqi{ display:inline-flex; gap:2px; align-items:flex-end; height:11px; }
+  .suite .eqi span{ width:2px; background: var(--amber); border-radius:1px; animation: eq 0.8s ease-in-out infinite alternate; }
+  .suite .eqi span:nth-child(2){ animation-delay:.2s; background: var(--teal); }
+  .suite .eqi span:nth-child(3){ animation-delay:.4s; }
+  .suite .eqi span:nth-child(4){ animation-delay:.1s; background: var(--magenta); }
+
+  /* ============ overlays: scanlines, sweep, grain, vignette ============ */
+  .scanlines{
+    position: fixed; inset:0; pointer-events:none; z-index: 40;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.16) 0 1px, transparent 1px 3px);
+    mix-blend-mode: multiply;
+    opacity: 0.6;
+  }
+  .sweep{
+    position: fixed; left:0; right:0; height: 38vh; top:-38vh; z-index: 41;
+    pointer-events:none;
+    background: linear-gradient(180deg, transparent, rgba(255,220,170,0.10), transparent);
+    transform: translateY(0);
+    opacity: 0;
+    mix-blend-mode: screen;
+  }
+  canvas#grain{
+    position: fixed; inset:0; width:100%; height:100%;
+    pointer-events:none; z-index: 42;
+    opacity: 0.05; mix-blend-mode: overlay;
+    image-rendering: pixelated;
+  }
+  .vignette{
+    position: fixed; inset:0; pointer-events:none; z-index: 43;
+    box-shadow: inset 0 0 200px 40px rgba(0,0,0,0.7);
+    background: radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .reel, .onair .dot, .eq span, .suite .eqi span, .term-cursor, .install .cur { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="frame" id="frame">
+
+    <div class="halo" id="halo"></div>
+
+    <!-- SCENE A — the wall you'll never read -->
+    <section class="scene scene-a" id="sceneA">
+      <div class="term" aria-hidden="true">
+        <div class="term-bar"><i></i><i></i><i></i><span>agent — build</span></div>
+        <div class="term-body" id="termBody"></div>
+      </div>
+      <div class="hook">
+        <h1>Your agent writes a <span class="mute">wall of output</span><br>you'll <span class="em">never read.</span></h1>
+        <p>So we put it on the radio.</p>
+      </div>
+    </section>
+
+    <!-- SCENE B — the console -->
+    <section class="scene scene-b" id="sceneB">
+      <div class="console">
+        <div class="row-top">
+          <div class="reels" aria-hidden="true">
+            <div class="reel"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="reel"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="nowplaying">
+            <div class="label">NOW PLAYING</div>
+            <div class="title">your <span class="wave">build</span></div>
+          </div>
+          <div class="onair"><span class="dot"></span>ON AIR</div>
+        </div>
+
+        <div class="wave-wrap"><canvas id="wave"></canvas></div>
+
+        <div class="eq" id="eq" aria-hidden="true"></div>
+
+        <div class="dial" aria-hidden="true">
+          <div class="stations" id="stations">
+            <b>MONOLOGUE</b><b>PODCAST</b><b>LO-FI</b><b>SYNTHWAVE</b><b>AMBIENT</b>
+          </div>
+          <div class="dial-track"></div>
+          <div class="dial-needle" id="needle"></div>
+          <div class="freq" id="freq">FM 101.5</div>
+        </div>
+
+        <div class="caption" id="caption">tuning in…</div>
+      </div>
+    </section>
+
+    <!-- SCENE C — end card -->
+    <section class="scene scene-c" id="sceneC">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <rect x="2.5" y="8" width="19" height="13" rx="2.5" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M7 8 L15 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="16.5" cy="14.5" r="3.2" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="6.5" cy="14.5" r="1.1" fill="currentColor"/>
+        </svg>
+      </div>
+      <h1 class="wordmark">vibe<span class="radio">radio</span></h1>
+      <p class="tagline">your agent, <span class="pulse">as audio.</span></p>
+      <div class="install"><span class="prompt">$</span><span id="installText"></span><span class="cur"></span></div>
+      <div class="suite"><span class="eqi"><span></span><span></span><span></span><span></span></span>part of the Vibe Suite</div>
+    </section>
+
+  </div>
+</div>
+
+<!-- overlays -->
+<div class="sweep" id="sweep"></div>
+<canvas id="grain"></canvas>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<script>
+(function(){
+  "use strict";
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ===================== fixed design space =====================
+  var DESIGN_W = 1920, DESIGN_H = 1080;
+  var currentScale = 1;
+
+  // ===================== timeline =====================
+  // total loop ~20s. scenes crossfade via opacity envelopes.
+  var LOOP = 20.0;
+
+  // scene windows [fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd]
+  var WIN = {
+    A: [0.00, 0.35, 1.95, 2.55],
+    B: [2.20, 3.05, 13.85, 14.65],
+    C: [14.25, 15.25, 19.45, 20.00]
+  };
+  function envelope(t, w){
+    var a = (t - w[0]) / (w[1] - w[0]);
+    var b = (w[3] - t) / (w[3] - w[2]);
+    return Math.max(0, Math.min(1, Math.min(a, b)));
+  }
+
+  // caption events during scene B
+  var CAPS = [
+    { t: 3.15, html: 'tuning in…' },
+    { t: 4.10, html: '<span class="accent">●</span> NOW PLAYING — your build' },
+    { t: 5.50, html: 'your agent\'s output,' },
+    { t: 6.40, html: 'narrated — not read.' },
+    { t: 7.40, beat:1.7, html: '✅ tests pass' },
+    { t: 9.05, beat:1.8, html: '⬆️ commit pushed' },
+    { t:10.75, beat:2.1, html: '🚢 shipped' },
+    { t:12.40, html: 'turn the terminal…' },
+    { t:13.15, html: 'into a radio.' }
+  ];
+
+  // ===================== DOM =====================
+  var stage   = document.getElementById("stage");
+  var frame   = document.getElementById("frame");
+  var sceneA  = document.getElementById("sceneA");
+  var sceneB  = document.getElementById("sceneB");
+  var sceneC  = document.getElementById("sceneC");
+  var caption = document.getElementById("caption");
+  var needle  = document.getElementById("needle");
+  var freq    = document.getElementById("freq");
+  var stations= document.getElementById("stations");
+  var eqEl    = document.getElementById("eq");
+  var wave    = document.getElementById("wave");
+  var grain   = document.getElementById("grain");
+  var sweep   = document.getElementById("sweep");
+  var halo    = document.getElementById("halo");
+  var installText = document.getElementById("installText");
+  var termBody= document.getElementById("termBody");
+
+  // ===================== energy model =====================
+  var energy = 0.1;        // current
+  var energyBase = 0.1;    // ambient target per scene
+  var energyBoost = 0;     // transient beat add
+  function pulseBoost(a){ energyBoost = Math.max(energyBoost, a); }
+
+  // ===================== EQ bars =====================
+  var EQ_N = 36;
+  var eqFrag = document.createDocumentFragment();
+  for (var i = 0; i < EQ_N; i++){
+    var s = document.createElement("span");
+    // a few accent-colored bars for life
+    if (i % 7 === 3) s.className = "t";
+    else if (i % 11 === 5) s.className = "m";
+    s.style.animationDuration = (0.55 + Math.random()*0.5).toFixed(2) + "s";
+    s.style.animationDelay    = (-Math.random()*0.7).toFixed(2) + "s";
+    eqFrag.appendChild(s);
+  }
+  eqEl.appendChild(eqFrag);
+
+  // ===================== terminal wall (scene A) =====================
+  var LINE_POOL = [
+    '<span class="mut">Reading</span> src/auth.ts (1–240)…',
+    '<span class="ok">grep</span> tokenExpiry → 14 matches across 6 files',
+    '<span class="mut">I\'ll</span> refactor verifyToken() to handle the boundary',
+    '<span class="add">+ if (now &lt;= exp) {</span>',
+    '<span class="del">- if (now &lt; exp) {</span>',
+    '<span class="mut">Editing</span> src/auth.ts … 3 edits applied',
+    '<span class="mut">Running</span> npm test',
+    '<span class="ok">✓ src/auth.test.ts</span> 9 passed',
+    '<span class="ok">✓ src/token.test.ts</span> 7 passed',
+    '<span class="ok">✓ 42 passed</span> (3.1s)',
+    '<span class="mut">Creating</span> PR #42 — fix: off-by-one in token expiry',
+    '<span class="mut">Searching</span> usages of verifyToken … 23 refs',
+    '<span class="mut">Writing</span> boundary test for expiry second',
+    '<span class="add">+ expect(isValid(now)).toBe(true)</span>',
+    '<span class="mut">Analyzing</span> diff across 4 files …',
+    '<span class="ok">✓ lint clean</span> · 0 warnings',
+    '<span class="mut">Planning</span> next: extract TokenClock helper',
+    '<span class="mut">Reading</span> src/middleware/session.ts (88–140)',
+    '<span class="del">- // TODO: revisit this comparison later</span>',
+    '<span class="ok">✓ types ok</span> · tsc --noEmit',
+    '<span class="mut">Indexing</span> repo for retrieval … 1,204 nodes',
+    '<span class="mut">Running</span> vitest run --reporter=dot',
+    '<span class="ok">✓ all green</span> · 42/42'
+  ];
+  (function buildTerm(){
+    var n = 22, html = "";
+    for (var i = 0; i < n; i++){
+      html += '<div class="ln">' + LINE_POOL[i % LINE_POOL.length] + '</div>';
+    }
+    termBody.innerHTML = html + '<div class="ln"><span class="term-cursor"></span></div>';
+  })();
+  // scrollback animation handled by reordering lines on an interval
+  var termOffset = 0;
+  setInterval(function(){
+    if (reduceMotion) return;
+    termOffset = (termOffset + 1) % LINE_POOL.length;
+    var first = termBody.firstElementChild;
+    if (!first) return;
+    first.innerHTML = LINE_POOL[(termOffset) % LINE_POOL.length];
+    termBody.appendChild(first); // move top line to bottom → continuous scroll
+  }, 360);
+
+  // ===================== install command (typed in scene C) =====================
+  // the prompt is static chrome; only the command types in.
+  var PLAIN = 'npx viberadio-fm';
+  var INSTALL_HTML = '<span class="cmd">npx</span> <span class="pkg">viberadio-fm</span>';
+  function renderInstall(chars){
+    installText.textContent = PLAIN.slice(0, chars);
+  }
+
+  // ===================== waveform canvas =====================
+  var wctx = wave.getContext("2d");
+  var wdpr = 1;
+  function fitWave(){
+    // backing store tracks both devicePixelRatio and the frame's fit-scale
+    wdpr = (window.devicePixelRatio || 1) * currentScale;
+    wave.width  = Math.max(1, Math.round(wave.clientWidth  * wdpr));
+    wave.height = Math.max(1, Math.round(wave.clientHeight * wdpr));
+    wctx.setTransform(wdpr, 0, 0, wdpr, 0, 0);
+  }
+  function rr(x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    wctx.beginPath();
+    wctx.moveTo(x+r,y);
+    wctx.arcTo(x+w,y,x+w,y+h,r);
+    wctx.arcTo(x+w,y+h,x,y+h,r);
+    wctx.arcTo(x,y+h,x,y,r);
+    wctx.arcTo(x,y,x+w,y,r);
+    wctx.closePath();
+  }
+  function drawWave(time, t){
+    var w = wave.clientWidth, h = wave.clientHeight;
+    wctx.clearRect(0,0,w,h);
+    var mid = h/2;
+
+    // character of the signal by scene
+    var amp, count, gap, speedA, speedB, palette, glow;
+    var inA = t < WIN.A[3];
+    var inC = t > WIN.C[0];
+
+    if (inA){
+      // static: short noisy line, low
+      amp = 0.12; count = 80; gap = 2; speedA = 6; speedB = 9;
+      palette = ["#5b5346"]; glow = 0;
+    } else if (inC){
+      // gentle pulse under the wordmark
+      amp = 0.22 + 0.12*Math.sin(time*1.6); count = 48; gap = 4; speedA = 1.4; speedB = 2.2;
+      palette = ["#ffb454"]; glow = 10;
+    } else {
+      // hero
+      var e = Math.min(1.6, 0.55 + energy);
+      amp = 0.95 * e; count = 60; gap = 3; speedA = 2.1; speedB = 3.7;
+      palette = ["#ffb454","#ff8a4a","#ff5fa8"]; glow = 14;
+    }
+
+    var barW = (w / count) - gap;
+    var grad = wctx.createLinearGradient(0,0,w,0);
+    grad.addColorStop(0, palette[0]);
+    if (palette[1]){ grad.addColorStop(0.5, palette[1]); }
+    if (palette[2]){ grad.addColorStop(1, palette[2]); }
+
+    wctx.save();
+    wctx.shadowColor = palette[0];
+    wctx.shadowBlur = glow;
+    wctx.fillStyle = grad;
+
+    for (var i = 0; i < count; i++){
+      var ph = i * 0.5;
+      var a = Math.sin(time*speedA + ph)*0.5 + Math.sin(time*speedB + ph*1.7)*0.3 + Math.sin(time*0.7 + i)*0.2;
+      var mag = Math.abs(a) * amp;
+      // weight center louder (mix-ish)
+      var cw = 0.55 + 0.45*Math.sin((i/(count-1))*Math.PI);
+      var bh = Math.max(2, mag * cw * (h*0.46));
+      var x = i*(barW+gap);
+      rr(x, mid-bh, barW, bh*2, Math.min(barW/2,2.5));
+      wctx.fill();
+    }
+    wctx.restore();
+
+    // soft center line
+    wctx.strokeStyle = "rgba(255,180,84,0.10)";
+    wctx.lineWidth = 1;
+    wctx.beginPath(); wctx.moveTo(0,mid); wctx.lineTo(w,mid); wctx.stroke();
+  }
+
+  // ===================== grain canvas =====================
+  var gctx = grain.getContext("2d");
+  var GW = 200, GH = 130;
+  grain.width = GW; grain.height = GH;
+  function regenGrain(){
+    var id = gctx.createImageData(GW, GH);
+    var d = id.data;
+    for (var i = 0; i < d.length; i += 4){
+      var v = (Math.random()*255)|0;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = 255;
+    }
+    gctx.putImageData(id, 0, 0);
+  }
+  var grainAcc = 0;
+  function maybeGrain(dt){
+    grainAcc += dt;
+    if (grainAcc > 0.07){ grainAcc = 0; regenGrain(); }
+  }
+
+  // ===================== tuning sweep (between scenes) =====================
+  function fireSweep(){
+    if (reduceMotion) return;
+    sweep.animate(
+      [
+        { transform: "translateY(-40vh)", opacity: 0 },
+        { transform: "translateY(-10vh)", opacity: 0.9, offset: 0.25 },
+        { transform: "translateY(110vh)", opacity: 0 }
+      ],
+      { duration: 760, easing: "cubic-bezier(0.16,1,0.3,1)" }
+    );
+  }
+
+  // ===================== caption control =====================
+  var lastCapIdx = -1;
+  function setCaption(html){
+    caption.classList.add("swap");
+    setTimeout(function(){
+      caption.innerHTML = html;
+      caption.classList.remove("swap");
+    }, 180);
+  }
+
+  // ===================== needle + stations =====================
+  var STATION_POS = [0.10, 0.30, 0.52, 0.74, 0.92]; // fractions across dial
+  function setStation(i){
+    var bs = stations.querySelectorAll("b");
+    for (var k = 0; k < bs.length; k++) bs[k].classList.toggle("on", k === i);
+  }
+
+  // ===================== frame fit =====================
+  function fitFrame(){
+    currentScale = Math.min(window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H);
+    frame.style.transform = "scale(" + currentScale + ")";
+    fitWave();
+  }
+
+  // ===================== main loop =====================
+  // optional #t=SECONDS freezes the timeline at an offset (for captures)
+  var hashT = 0;
+  var hm = /[#&]t=([0-9.]+)/.exec(location.hash || "");
+  if (hm) hashT = parseFloat(hm[1]) || 0;
+  var start = performance.now() - hashT * 1000;
+  var last = start;
+  var prevA = 0, prevB = 0, prevC = 0;
+
+  function frame2(now){
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    var t = ((now - start) / 1000) % LOOP;
+
+    // scene envelopes
+    var oA = reduceMotion ? 0 : envelope(t, WIN.A);
+    var oB = reduceMotion ? 0 : envelope(t, WIN.B);
+    var oC = reduceMotion ? 1 : envelope(t, WIN.C);
+    sceneA.style.opacity = oA;
+    sceneB.style.opacity = oB;
+    sceneC.style.opacity = oC;
+    // subtle entrance choreography
+    sceneB.style.transform = "translateY(" + ((1-oB)*16) + "px)";
+    sceneB.style.filter = "blur(" + ((1-oB)*6) + "px)";
+    sceneC.style.transform = "translateY(" + ((1-oC)*18) + "px)";
+
+    // fire sweep on scene changes
+    if ((oA>0 && prevA===0) || (oB>0 && prevB===0) || (oC>0 && prevC===0)) fireSweep();
+    prevA=oA; prevB=oB; prevC=oC;
+
+    // base energy by scene
+    if (oA > 0.5) energyBase = 0.08;
+    else if (oB > 0.5) energyBase = 0.55;
+    else if (oC > 0.5) energyBase = 0.30;
+    energyBoost = Math.max(0, energyBoost - dt * 1.2); // decay
+    energy += ((energyBase + energyBoost) - energy) * Math.min(1, dt*6);
+    stage.style.setProperty("--energy", energy.toFixed(3));
+    halo.style.setProperty("--energy", energy.toFixed(3));
+    eqEl.style.setProperty("--boost", Math.max(0, Math.min(1, (energy-0.4)/1.1)).toFixed(3));
+
+    // captions + beats
+    var ci = -1;
+    for (var k = 0; k < CAPS.length; k++){ if (t >= CAPS[k].t) ci = k; }
+    if (ci !== lastCapIdx){
+      lastCapIdx = ci;
+      if (ci >= 0 && oB > 0.3){
+        setCaption(CAPS[ci].html);
+        if (CAPS[ci].beat){ pulseBoost(CAPS[ci].beat); }
+      }
+    }
+
+    // needle: sweep on wake, then jitter; settle on LO-FI (index 2)
+    var needlePct;
+    if (t < 3.4){ needlePct = 0.5 + Math.sin((t-2.2)*6) * 0.4 * (1-(t-2.2)); needlePct = Math.max(0.05, Math.min(0.95, needlePct)); }
+    else if (t < 4.2){ // glide onto LO-FI
+      var p = (t-3.4)/0.8; needlePct = 0.5 + (STATION_POS[2]-0.5)*(1-Math.pow(1-p,3));
+    } else if (oB > 0){ // locked, micro-jitter
+      needlePct = STATION_POS[2] + (Math.sin(t*22)*0.4 + Math.sin(t*7)*0.6) * 0.006;
+    } else { needlePct = STATION_POS[2]; }
+    needle.style.left = (needlePct*100).toFixed(2) + "%";
+    var mhz = 88 + needlePct*20;
+    freq.textContent = "FM " + mhz.toFixed(1);
+
+    // station glow
+    if (t > 4.0 && oB > 0.3) setStation(2); else setStation(-1);
+
+    // typed install command during scene C
+    var installStart = 15.6, installEnd = 18.0;
+    var ip = Math.max(0, Math.min(1, (t - installStart)/(installEnd-installStart)));
+    if (oC > 0.05){
+      var shown = Math.round(ip * PLAIN.length);
+      if (shown >= PLAIN.length){
+        installText.innerHTML = INSTALL_HTML;
+      } else {
+        renderInstall(shown);
+      }
+    }
+
+    // waveform + grain
+    drawWave(now/1000, t);
+    maybeGrain(dt);
+
+    requestAnimationFrame(frame2);
+  }
+
+  // init
+  fitFrame();
+  window.addEventListener("resize", fitFrame);
+  setStation(-1);
+  caption.innerHTML = "tuning in…";
+  installText.innerHTML = "";
+  if (reduceMotion){
+    // static end card
+    sceneA.style.opacity = 0; sceneB.style.opacity = 0; sceneC.style.opacity = 1;
+    installText.innerHTML = INSTALL_HTML;
+    // gentle wave only
+    requestAnimationFrame(function lo(now){
+      drawWave(now/1000, 16);
+      requestAnimationFrame(lo);
+    });
+  } else {
+    regenGrain();
+    requestAnimationFrame(frame2);
+  }
+})();
+</script>
+</body>
+</html>
