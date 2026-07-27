@@ -14,6 +14,8 @@
 import {
   createCascade,
   createConsentLedger,
+  makeEvent,
+  notify,
   pickLocalRunner,
   type Capability,
   type Cascade,
@@ -70,6 +72,12 @@ export interface NarratorDeps {
   readonly hostProvider?: () => Promise<ProviderAdapter | null>;
   /** Tier-2: capability-specific providers from keys you supplied (future). */
   readonly byoProviders?: readonly ProviderAdapter[];
+  /**
+   * Sink notified with a `task-done` event after a recap is spoken — the
+   * vibenotifications bridge. Defaults to vibe-core's `notify`, which appends
+   * to the local `~/.vibe/notify.jsonl` channel. Inject a fake in tests.
+   */
+  readonly notify?: (event: VibeEvent) => void;
 }
 
 /** Options for {@link narrate}. */
@@ -325,6 +333,11 @@ export function narrate(text: string, opts: NarrateOptions = {}): Promise<Narrat
 /**
  * Build a narration script from `events`, then speak it. Returns both the
  * resolved cascade tier and the script that was spoken.
+ *
+ * After the recap is spoken, a `task-done` event is pushed to the local
+ * notify channel (`~/.vibe/notify.jsonl` via vibe-core's `notify`) so
+ * vibenotifications can surface it. That bridge is best-effort: a channel
+ * IO failure never fails the recap.
  */
 export async function recap(
   events: readonly SessionEvent[],
@@ -332,5 +345,16 @@ export async function recap(
 ): Promise<RecapResult> {
   const script = buildRecapScript(events, { style: opts.style, mode: opts.mode });
   const { tier } = await narrate(script, { style: opts.style, deps: opts.deps });
+  const sink = opts.deps?.notify ?? notify;
+  try {
+    sink(
+      makeEvent('task-done', 'viberadio', process.cwd(), {
+        summary: script,
+        count: events.length,
+      }),
+    );
+  } catch {
+    /* the notify channel is best-effort — narration already succeeded */
+  }
   return { tier, script };
 }
