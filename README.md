@@ -8,6 +8,12 @@ Turns an agentic coding session into something you can _listen to_ instead of re
 **Modes:** ambient stream (narrates live as the agent works) · task summary (one message when a task finishes) · session recap (a longer podcast/musical wrap).
 **Timing:** sync/live (updates as the agent works) or async (after a turn/session) — user-configurable, per-hook. See [`spec.md`](spec.md).
 
+## Demo
+
+[▶ Watch the launch video](branding/launch-video.mp4) — four coding agents, four radios, each tuned to its own station.
+
+https://github.com/pooriaarab/viberadio/raw/main/branding/launch-video.mp4
+
 ## Quick start
 
 ```sh
