@@ -9,13 +9,25 @@
  * with zero keys. Runnable via `viberadio mcp`.
  */
 
+import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { buildRecapScript, narrate, type NarrateStyle, type RawEvent, type RecapMode, type SessionEvent } from './index.js';
 
 export const SERVER_NAME = 'viberadio';
-export const SERVER_VERSION = '0.1.0';
+// Read from package.json at load so the MCP server version never drifts from the
+// published package (it was hardcoded '0.1.0' while the package shipped 0.2.0).
+export const SERVER_VERSION: string = (() => {
+  try {
+    return (
+      (createRequire(import.meta.url)('../package.json') as { version?: string }).version ??
+      '0.0.0'
+    );
+  } catch {
+    return '0.0.0';
+  }
+})();
 
 const styleSchema = z.enum(['monologue', 'podcast']).optional();
 const modeSchema = z.enum(['summary', 'podcast']).optional();
