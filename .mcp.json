@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "viberadio-fm": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "viberadio-fm",
+        "mcp"
+      ]
+    }
+  }
+}
