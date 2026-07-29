@@ -1,7 +1,7 @@
 {
   "name": "viberadio-fm",
-  "version": "0.2.2",
-  "description": "Your agent's output as audio — spoken narration, monologue, two-host podcast, or reactive music. For Claude Code, Codex, Gemini, and other agentic CLIs. Local-first.",
+  "version": "0.2.3",
+  "description": "Your agent's output as audio \u2014 spoken narration, monologue, two-host podcast, or reactive music. For Claude Code, Codex, Gemini, and other agentic CLIs. Local-first.",
   "type": "module",
   "license": "MIT",
   "author": "Pooria Arab",
@@ -61,5 +61,6 @@
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "mcpName": "io.github.pooriaarab/viberadio-fm"
 }
