@@ -144,51 +144,60 @@ const asString = (v: unknown): string | undefined =>
 const asNumber = (v: unknown): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
+function firstString(...values: unknown[]): string | undefined {
+  for (const v of values) {
+    const s = asString(v);
+    if (s !== undefined) return s;
+  }
+  return undefined;
+}
+
+function firstNumber(...values: unknown[]): number | undefined {
+  for (const v of values) {
+    const n = asNumber(v);
+    if (n !== undefined) return n;
+  }
+  return undefined;
+}
+
 function normalizeEvent(ev: SessionEvent): NormalizedEvent {
   const r = ev as RawEvent;
   const kind = typeof r.kind === 'string' ? r.kind : 'manual';
   const p: Record<string, unknown> = r.payload ?? {};
-  const detail =
-    asString(p['message']) ??
-    asString(p['summary']) ??
-    asString(p['detail']) ??
-    asString(p['title']) ??
-    asString(p['description']) ??
-    asString(p['change']) ??
-    asString(r.message);
-  const file = asString(p['file']) ?? asString(p['path']) ?? asString(r.file);
-  const pr = asNumber(p['pr']) ?? asNumber(p['number']) ?? asNumber(r.pr);
-  const count = asNumber(p['count']) ?? asNumber(r.count);
-  return { kind, detail, file, pr, count };
+  return {
+    kind,
+    detail: firstString(p['message'], p['summary'], p['detail'], p['title'], p['description'], p['change'], r.message),
+    file: firstString(p['file'], p['path'], r.file),
+    pr: firstNumber(p['pr'], p['number'], r.pr),
+    count: firstNumber(p['count'], r.count),
+  };
 }
+
+type EventFormatter = (ev: NormalizedEvent) => string | null;
+
+const EVENT_FORMATTERS: Record<string, EventFormatter> = {
+  'pr-opened': (ev) => {
+    const where = ev.file ? ` (${ev.file})` : '';
+    return ev.pr !== undefined ? `opened PR #${ev.pr}${where}` : `opened a pull request${where}`;
+  },
+  'tests-pass': (ev) => `tests passed${ev.count !== undefined ? ` (${ev.count})` : ''}`,
+  'tests-fail': (ev) => `tests failed${ev.count !== undefined ? ` (${ev.count})` : ''}`,
+  'task-done': (ev) => {
+    if (ev.detail) return ev.file ? `${ev.detail} (${ev.file})` : ev.detail;
+    return ev.file ? `worked in ${ev.file}` : 'finished a task';
+  },
+  'spec-completed': (ev) => ev.detail ?? 'finished the spec',
+  'prototype-finished': (ev) => ev.detail ?? 'finished a prototype',
+  error: (ev) => ev.detail ?? 'ran into an error',
+  'session-end': (ev) => ev.detail ?? 'wrapped up the session',
+  manual: (ev) => ev.detail ?? 'hit a checkpoint',
+};
 
 /** Map one normalized event to a spoken clause, or `null` to skip it. */
 function describeEvent(ev: NormalizedEvent): string | null {
-  switch (ev.kind) {
-    case 'pr-opened': {
-      const where = ev.file ? ` (${ev.file})` : '';
-      return ev.pr !== undefined ? `opened PR #${ev.pr}${where}` : `opened a pull request${where}`;
-    }
-    case 'tests-pass':
-      return `tests passed${ev.count !== undefined ? ` (${ev.count})` : ''}`;
-    case 'tests-fail':
-      return `tests failed${ev.count !== undefined ? ` (${ev.count})` : ''}`;
-    case 'task-done':
-      if (ev.detail) return ev.file ? `${ev.detail} (${ev.file})` : ev.detail;
-      return ev.file ? `worked in ${ev.file}` : 'finished a task';
-    case 'spec-completed':
-      return ev.detail ?? 'finished the spec';
-    case 'prototype-finished':
-      return ev.detail ?? 'finished a prototype';
-    case 'error':
-      return ev.detail ?? 'ran into an error';
-    case 'session-end':
-      return ev.detail ?? 'wrapped up the session';
-    case 'manual':
-      return ev.detail ?? 'hit a checkpoint';
-    default:
-      return ev.detail ?? null;
-  }
+  const formatter = Object.hasOwn(EVENT_FORMATTERS, ev.kind) ? EVENT_FORMATTERS[ev.kind] : undefined;
+  if (formatter) return formatter(ev);
+  return ev.detail ?? null;
 }
 
 /** Join spoken clauses with commas and an Oxford "and" before the last. */
@@ -198,6 +207,36 @@ function joinClauses(clauses: readonly string[]): string {
   const last = clauses.at(-1) ?? '';
   const head = clauses.slice(0, -1).join(', ');
   return `${head}, and ${last}`;
+}
+
+function collectClauses(events: readonly SessionEvent[]): string[] {
+  const clauses: string[] = [];
+  for (const ev of events) {
+    const clause = describeEvent(normalizeEvent(ev));
+    if (clause !== null) clauses.push(clause);
+  }
+  return clauses;
+}
+
+function emptyRecapScript(style: NarrateStyle): string {
+  return style === 'podcast'
+    ? 'Welcome back. Nothing has happened yet, so there is nothing to recap. Check back after the next turn.'
+    : 'Nothing has happened yet — nothing to recap.';
+}
+
+function podcastScript(mode: RecapMode, body: string): string {
+  const opener =
+    mode === 'podcast'
+      ? 'Welcome back to the session. Let us walk through what just happened.'
+      : 'Quick session recap.';
+  const closer = mode === 'podcast' ? 'And that wraps this one. Back to work.' : 'That is the recap.';
+  return `${opener} — So, what happened? — ${body}. — ${closer}`;
+}
+
+function monologueScript(mode: RecapMode, body: string): string {
+  const opener =
+    mode === 'podcast' ? 'Here is a walkthrough of what happened in this session:' : 'Here is what happened:';
+  return `${opener} ${body}.`;
 }
 
 /**
@@ -226,31 +265,11 @@ export function buildRecapScript(
 ): string {
   const style: NarrateStyle = opts.style ?? 'monologue';
   const mode: RecapMode = opts.mode ?? 'summary';
-
-  const clauses: string[] = [];
-  for (const ev of events) {
-    const clause = describeEvent(normalizeEvent(ev));
-    if (clause !== null) clauses.push(clause);
-  }
+  const clauses = collectClauses(events);
   const body = joinClauses(clauses);
-
-  if (clauses.length === 0) {
-    return style === 'podcast'
-      ? 'Welcome back. Nothing has happened yet, so there is nothing to recap. Check back after the next turn.'
-      : 'Nothing has happened yet — nothing to recap.';
-  }
-
-  if (style === 'podcast') {
-    const opener =
-      mode === 'podcast'
-        ? 'Welcome back to the session. Let us walk through what just happened.'
-        : 'Quick session recap.';
-    const closer = mode === 'podcast' ? 'And that wraps this one. Back to work.' : 'That is the recap.';
-    return `${opener} — So, what happened? — ${body}. — ${closer}`;
-  }
-
-  const opener = mode === 'podcast' ? 'Here is a walkthrough of what happened in this session:' : 'Here is what happened:';
-  return `${opener} ${body}.`;
+  if (clauses.length === 0) return emptyRecapScript(style);
+  if (style === 'podcast') return podcastScript(mode, body);
+  return monologueScript(mode, body);
 }
 
 /* -------------------------------------------------------------------------- */
