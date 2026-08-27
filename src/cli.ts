@@ -51,6 +51,45 @@ function parseMode(v: string | undefined): RecapMode | undefined {
   return v !== undefined && MODES.has(v as RecapMode) ? (v as RecapMode) : undefined;
 }
 
+function parseMetaCommand(first: string): CliCommand | undefined {
+  if (first === '--help' || first === '-h' || first === 'help') return 'help';
+  if (first === '--version' || first === '-v') return 'version';
+  if (first === 'mcp') return 'mcp';
+  return undefined;
+}
+
+function parseSayArgs(args: readonly string[]): ParsedArgs {
+  let style: NarrateStyle | undefined;
+  // args[1] is the text (quoted); flags may follow.
+  for (let i = 2; i < args.length; i++) {
+    const a = args[i] ?? '';
+    if (a === '--style' || a === '-s') {
+      style = parseStyle(args[i + 1]);
+      i += 1;
+    }
+  }
+  return { command: 'say', text: args[1], style };
+}
+
+function parseRecapArgs(args: readonly string[]): ParsedArgs {
+  let file: string | undefined;
+  let style: NarrateStyle | undefined;
+  let mode: RecapMode | undefined;
+  for (let i = 1; i < args.length; i++) {
+    const a = args[i] ?? '';
+    if (a === '--style' || a === '-s') {
+      style = parseStyle(args[i + 1]);
+      i += 1;
+    } else if (a === '--mode' || a === '-m') {
+      mode = parseMode(args[i + 1]);
+      i += 1;
+    } else if (!a.startsWith('-') && file === undefined) {
+      file = a;
+    }
+  }
+  return { command: 'recap', file, style, mode };
+}
+
 /**
  * Parse VibeRadio CLI args (i.e. `process.argv.slice(2)`). Pure — no IO, no
  * process state — so it is trivially unit-testable.
@@ -67,43 +106,10 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   if (args.length === 0) return { command: 'help' };
 
   const first = args[0] ?? '';
-  if (first === '--help' || first === '-h' || first === 'help') return { command: 'help' };
-  if (first === '--version' || first === '-v') return { command: 'version' };
-  if (first === 'mcp') return { command: 'mcp' };
-
-  if (first === 'say') {
-    let style: NarrateStyle | undefined;
-    // args[1] is the text (quoted); flags may follow.
-    for (let i = 2; i < args.length; i++) {
-      const a = args[i] ?? '';
-      if (a === '--style' || a === '-s') {
-        style = parseStyle(args[i + 1]);
-        i += 1;
-      }
-    }
-    const text = args[1];
-    return { command: 'say', text, style };
-  }
-
-  if (first === 'recap') {
-    let file: string | undefined;
-    let style: NarrateStyle | undefined;
-    let mode: RecapMode | undefined;
-    for (let i = 1; i < args.length; i++) {
-      const a = args[i] ?? '';
-      if (a === '--style' || a === '-s') {
-        style = parseStyle(args[i + 1]);
-        i += 1;
-      } else if (a === '--mode' || a === '-m') {
-        mode = parseMode(args[i + 1]);
-        i += 1;
-      } else if (!a.startsWith('-') && file === undefined) {
-        file = a;
-      }
-    }
-    return { command: 'recap', file, style, mode };
-  }
-
+  const meta = parseMetaCommand(first);
+  if (meta !== undefined) return { command: meta };
+  if (first === 'say') return parseSayArgs(args);
+  if (first === 'recap') return parseRecapArgs(args);
   return { command: null };
 }
 
@@ -199,6 +205,48 @@ function handleNoTts(scriptOrText: string, err: unknown): number {
 /* main                                                                        */
 /* -------------------------------------------------------------------------- */
 
+async function runMcp(): Promise<number> {
+  // Lazy-load so `say`/`recap` never pay the MCP SDK / zod import cost.
+  const mcpUrl = new URL('./mcp.js', import.meta.url);
+  const mod = (await import(mcpUrl.href)) as { startMcpServer: () => Promise<void> };
+  await mod.startMcpServer();
+  return 0;
+}
+
+async function runSay(parsed: ParsedArgs): Promise<number> {
+  const text = parsed.text;
+  if (typeof text !== 'string' || text.length === 0) {
+    process.stderr.write('Usage: viberadio say "<text>"\n');
+    return 2;
+  }
+  try {
+    const { tier } = await narrate(text, parsed.style ? { style: parsed.style } : {});
+    process.stderr.write(`${tierChip('🔊', tier)}\n`);
+    return 0;
+  } catch (err) {
+    return handleNoTts(text, err);
+  }
+}
+
+async function runRecap(parsed: ParsedArgs): Promise<number> {
+  let events: SessionEvent[];
+  try {
+    events = await readEvents(parsed.file);
+  } catch (err) {
+    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+    return 2;
+  }
+  const opts = { style: parsed.style, mode: parsed.mode };
+  const script = buildRecapScript(events, opts);
+  try {
+    const { tier } = await narrate(script, opts);
+    process.stderr.write(`${tierChip('🔊', tier)}\n`);
+    return 0;
+  } catch (err) {
+    return handleNoTts(script, err);
+  }
+}
+
 /** CLI entry. Returns the desired exit code. */
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
   const parsed = parseArgs(argv);
@@ -212,45 +260,12 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       printHelp();
       return 0;
     }
-    case 'mcp': {
-      // Lazy-load so `say`/`recap` never pay the MCP SDK / zod import cost.
-      const mcpUrl = new URL('./mcp.js', import.meta.url);
-      const mod = (await import(mcpUrl.href)) as { startMcpServer: () => Promise<void> };
-      await mod.startMcpServer();
-      return 0;
-    }
-    case 'say': {
-      const text = parsed.text;
-      if (typeof text !== 'string' || text.length === 0) {
-        process.stderr.write('Usage: viberadio say "<text>"\n');
-        return 2;
-      }
-      try {
-        const { tier } = await narrate(text, parsed.style ? { style: parsed.style } : {});
-        process.stderr.write(`${tierChip('🔊', tier)}\n`);
-        return 0;
-      } catch (err) {
-        return handleNoTts(text, err);
-      }
-    }
-    case 'recap': {
-      let events: SessionEvent[];
-      try {
-        events = await readEvents(parsed.file);
-      } catch (err) {
-        process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-        return 2;
-      }
-      const opts = { style: parsed.style, mode: parsed.mode };
-      const script = buildRecapScript(events, opts);
-      try {
-        const { tier } = await narrate(script, opts);
-        process.stderr.write(`${tierChip('🔊', tier)}\n`);
-        return 0;
-      } catch (err) {
-        return handleNoTts(script, err);
-      }
-    }
+    case 'mcp':
+      return runMcp();
+    case 'say':
+      return runSay(parsed);
+    case 'recap':
+      return runRecap(parsed);
     default: {
       process.stderr.write(`Unknown command. Run 'viberadio --help'.\n`);
       return 2;

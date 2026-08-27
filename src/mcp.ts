@@ -32,10 +32,7 @@ export const SERVER_VERSION: string = (() => {
 const styleSchema = z.enum(['monologue', 'podcast']).optional();
 const modeSchema = z.enum(['summary', 'podcast']).optional();
 
-/** Build a configured McpServer (not yet connected to a transport). Exported for tests. */
-export function createServer(): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
-
+function registerNarrateTool(server: McpServer): void {
   server.registerTool(
     'narrate',
     {
@@ -55,7 +52,9 @@ export function createServer(): McpServer {
       };
     },
   );
+}
 
+function registerRecapTool(server: McpServer): void {
   server.registerTool(
     'recap',
     {
@@ -84,7 +83,13 @@ export function createServer(): McpServer {
       };
     },
   );
+}
 
+/** Build a configured McpServer (not yet connected to a transport). Exported for tests. */
+export function createServer(): McpServer {
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  registerNarrateTool(server);
+  registerRecapTool(server);
   return server;
 }
 
