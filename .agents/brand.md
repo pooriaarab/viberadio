@@ -43,8 +43,9 @@ metaphor hide the product state.
 ## Naming
 
 - Use **VibeRadio** for the product name.
-- Use `viberadio` for the executable and MCP server name.
+- Use `viberadio` for the executable and MCP runtime display name.
 - Use `viberadio-fm` for the npm package.
+- Use `io.github.pooriaarab/viberadio-fm` for the MCP manifest name.
 - Use **Vibe Suite** for the related product family.
 - Use `@pooriaarab/vibe-core` for the shipped dependency.
 
