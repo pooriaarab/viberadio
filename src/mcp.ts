@@ -9,46 +9,54 @@
  * with zero keys. Runnable via `viberadio mcp`.
  */
 
-import { createRequire } from 'node:module';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
-import { buildRecapScript, narrate, type NarrateStyle, type RawEvent, type RecapMode, type SessionEvent } from './index.js';
+import { createRequire } from "node:module";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import {
+  buildRecapScript,
+  narrate,
+  type NarrateStyle,
+  type RawEvent,
+  type RecapMode,
+  type SessionEvent,
+} from "./index.js";
 
-export const SERVER_NAME = 'viberadio';
+export const SERVER_NAME = "viberadio";
 // Read from package.json at load so the MCP server version never drifts from the
 // published package (it was hardcoded '0.1.0' while the package shipped 0.2.0).
 export const SERVER_VERSION: string = (() => {
   try {
     return (
-      (createRequire(import.meta.url)('../package.json') as { version?: string }).version ??
-      '0.0.0'
+      (createRequire(import.meta.url)("../package.json") as { version?: string }).version ?? "0.0.0"
     );
   } catch {
-    return '0.0.0';
+    return "0.0.0";
   }
 })();
 
-const styleSchema = z.enum(['monologue', 'podcast']).optional();
-const modeSchema = z.enum(['summary', 'podcast']).optional();
+const styleSchema = z.enum(["monologue", "podcast"]).optional();
+const modeSchema = z.enum(["summary", "podcast"]).optional();
 
 function registerNarrateTool(server: McpServer): void {
   server.registerTool(
-    'narrate',
+    "narrate",
     {
-      title: 'Narrate text',
+      title: "Narrate text",
       description:
-        'Narrate arbitrary text as audio via VibeRadio. Uses on-device TTS (macOS `say` / Linux `espeak`), so it works offline with zero keys.',
+        "Narrate arbitrary text as audio via VibeRadio. Uses on-device TTS (macOS `say` / Linux `espeak`), so it works offline with zero keys.",
       inputSchema: {
-        text: z.string().min(1).describe('The text to speak aloud.'),
-        style: styleSchema.describe('Reserved for future per-style voice selection.'),
+        text: z.string().min(1).describe("The text to speak aloud."),
+        style: styleSchema.describe("Reserved for future per-style voice selection."),
       },
     },
     async (args) => {
       const style = (args.style ?? undefined) as NarrateStyle | undefined;
       const { tier } = await narrate(args.text, style ? { style } : {});
       return {
-        content: [{ type: 'text' as const, text: `narrated via ${tier} tier (on-device, offline)` }],
+        content: [
+          { type: "text" as const, text: `narrated via ${tier} tier (on-device, offline)` },
+        ],
       };
     },
   );
@@ -56,18 +64,18 @@ function registerNarrateTool(server: McpServer): void {
 
 function registerRecapTool(server: McpServer): void {
   server.registerTool(
-    'recap',
+    "recap",
     {
-      title: 'Recap a session',
+      title: "Recap a session",
       description:
-        'Build a spoken narration script from a list of session milestone events (VibeEvent[]), then speak it aloud. Kind may be task-done, pr-opened, tests-pass, tests-fail, error, spec-completed, prototype-finished, session-end, or manual.',
+        "Build a spoken narration script from a list of session milestone events (VibeEvent[]), then speak it aloud. Kind may be task-done, pr-opened, tests-pass, tests-fail, error, spec-completed, prototype-finished, session-end, or manual.",
       inputSchema: {
         events: z
           .array(z.record(z.string(), z.unknown()))
           .min(1)
-          .describe('Session milestone events (VibeEvent[] / RawEvent[]).'),
-        style: styleSchema.describe('monologue (single voice) or podcast (two-host).'),
-        mode: modeSchema.describe('summary (terse) or podcast (walkthrough).'),
+          .describe("Session milestone events (VibeEvent[] / RawEvent[])."),
+        style: styleSchema.describe("monologue (single voice) or podcast (two-host)."),
+        mode: modeSchema.describe("summary (terse) or podcast (walkthrough)."),
       },
     },
     async (args) => {
@@ -78,7 +86,10 @@ function registerRecapTool(server: McpServer): void {
       const { tier } = await narrate(script, style ? { style } : {});
       return {
         content: [
-          { type: 'text' as const, text: `${script}\n\n(narrated via ${tier} tier, on-device, offline)` },
+          {
+            type: "text" as const,
+            text: `${script}\n\n(narrated via ${tier} tier, on-device, offline)`,
+          },
         ],
       };
     },
