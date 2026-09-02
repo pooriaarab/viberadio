@@ -25,17 +25,17 @@ import {
   type ProviderAdapter,
   type ResolvedProvider,
   type VibeEvent,
-} from '@pooriaarab/vibe-core';
+} from "@pooriaarab/vibe-core";
 
 /* -------------------------------------------------------------------------- */
 /* Public types                                                               */
 /* -------------------------------------------------------------------------- */
 
 /** Narration voice / character. v0 routes both through the single on-device voice. */
-export type NarrateStyle = 'monologue' | 'podcast';
+export type NarrateStyle = "monologue" | "podcast";
 
 /** Verbosity / shape of a recap. */
-export type RecapMode = 'summary' | 'podcast';
+export type RecapMode = "summary" | "podcast";
 
 /**
  * A loose event shape accepted from JSON files, stdin, or MCP tool args, where
@@ -116,13 +116,13 @@ export interface Narrator {
 
 /** Thrown when no audio provider could be resolved (e.g. no on-device TTS binary). */
 export class TtsUnavailableError extends Error {
-  readonly code = 'TTS_UNAVAILABLE' as const;
+  readonly code = "TTS_UNAVAILABLE" as const;
   constructor(
-    message = 'No audio provider available — on-device TTS not found.',
+    message = "No audio provider available — on-device TTS not found.",
     options?: { cause?: unknown },
   ) {
     super(message, options);
-    this.name = 'TtsUnavailableError';
+    this.name = "TtsUnavailableError";
   }
 }
 
@@ -139,10 +139,10 @@ interface NormalizedEvent {
 }
 
 const asString = (v: unknown): string | undefined =>
-  typeof v === 'string' && v.length > 0 ? v : undefined;
+  typeof v === "string" && v.length > 0 ? v : undefined;
 
 const asNumber = (v: unknown): number | undefined =>
-  typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;
 
 function firstString(...values: unknown[]): string | undefined {
   for (const v of values) {
@@ -162,50 +162,60 @@ function firstNumber(...values: unknown[]): number | undefined {
 
 function normalizeEvent(ev: SessionEvent): NormalizedEvent {
   const r = ev as RawEvent;
-  const kind = typeof r.kind === 'string' ? r.kind : 'manual';
+  const kind = typeof r.kind === "string" ? r.kind : "manual";
   const p: Record<string, unknown> = r.payload ?? {};
   return {
     kind,
-    detail: firstString(p['message'], p['summary'], p['detail'], p['title'], p['description'], p['change'], r.message),
-    file: firstString(p['file'], p['path'], r.file),
-    pr: firstNumber(p['pr'], p['number'], r.pr),
-    count: firstNumber(p['count'], r.count),
+    detail: firstString(
+      p["message"],
+      p["summary"],
+      p["detail"],
+      p["title"],
+      p["description"],
+      p["change"],
+      r.message,
+    ),
+    file: firstString(p["file"], p["path"], r.file),
+    pr: firstNumber(p["pr"], p["number"], r.pr),
+    count: firstNumber(p["count"], r.count),
   };
 }
 
 type EventFormatter = (ev: NormalizedEvent) => string | null;
 
 const EVENT_FORMATTERS: Record<string, EventFormatter> = {
-  'pr-opened': (ev) => {
-    const where = ev.file ? ` (${ev.file})` : '';
+  "pr-opened": (ev) => {
+    const where = ev.file ? ` (${ev.file})` : "";
     return ev.pr !== undefined ? `opened PR #${ev.pr}${where}` : `opened a pull request${where}`;
   },
-  'tests-pass': (ev) => `tests passed${ev.count !== undefined ? ` (${ev.count})` : ''}`,
-  'tests-fail': (ev) => `tests failed${ev.count !== undefined ? ` (${ev.count})` : ''}`,
-  'task-done': (ev) => {
+  "tests-pass": (ev) => `tests passed${ev.count !== undefined ? ` (${ev.count})` : ""}`,
+  "tests-fail": (ev) => `tests failed${ev.count !== undefined ? ` (${ev.count})` : ""}`,
+  "task-done": (ev) => {
     if (ev.detail) return ev.file ? `${ev.detail} (${ev.file})` : ev.detail;
-    return ev.file ? `worked in ${ev.file}` : 'finished a task';
+    return ev.file ? `worked in ${ev.file}` : "finished a task";
   },
-  'spec-completed': (ev) => ev.detail ?? 'finished the spec',
-  'prototype-finished': (ev) => ev.detail ?? 'finished a prototype',
-  error: (ev) => ev.detail ?? 'ran into an error',
-  'session-end': (ev) => ev.detail ?? 'wrapped up the session',
-  manual: (ev) => ev.detail ?? 'hit a checkpoint',
+  "spec-completed": (ev) => ev.detail ?? "finished the spec",
+  "prototype-finished": (ev) => ev.detail ?? "finished a prototype",
+  error: (ev) => ev.detail ?? "ran into an error",
+  "session-end": (ev) => ev.detail ?? "wrapped up the session",
+  manual: (ev) => ev.detail ?? "hit a checkpoint",
 };
 
 /** Map one normalized event to a spoken clause, or `null` to skip it. */
 function describeEvent(ev: NormalizedEvent): string | null {
-  const formatter = Object.hasOwn(EVENT_FORMATTERS, ev.kind) ? EVENT_FORMATTERS[ev.kind] : undefined;
+  const formatter = Object.hasOwn(EVENT_FORMATTERS, ev.kind)
+    ? EVENT_FORMATTERS[ev.kind]
+    : undefined;
   if (formatter) return formatter(ev);
   return ev.detail ?? null;
 }
 
 /** Join spoken clauses with commas and an Oxford "and" before the last. */
 function joinClauses(clauses: readonly string[]): string {
-  if (clauses.length === 0) return '';
-  if (clauses.length === 1) return clauses[0] ?? '';
-  const last = clauses.at(-1) ?? '';
-  const head = clauses.slice(0, -1).join(', ');
+  if (clauses.length === 0) return "";
+  if (clauses.length === 1) return clauses[0] ?? "";
+  const last = clauses.at(-1) ?? "";
+  const head = clauses.slice(0, -1).join(", ");
   return `${head}, and ${last}`;
 }
 
@@ -219,23 +229,26 @@ function collectClauses(events: readonly SessionEvent[]): string[] {
 }
 
 function emptyRecapScript(style: NarrateStyle): string {
-  return style === 'podcast'
-    ? 'Welcome back. Nothing has happened yet, so there is nothing to recap. Check back after the next turn.'
-    : 'Nothing has happened yet — nothing to recap.';
+  return style === "podcast"
+    ? "Welcome back. Nothing has happened yet, so there is nothing to recap. Check back after the next turn."
+    : "Nothing has happened yet — nothing to recap.";
 }
 
 function podcastScript(mode: RecapMode, body: string): string {
   const opener =
-    mode === 'podcast'
-      ? 'Welcome back to the session. Let us walk through what just happened.'
-      : 'Quick session recap.';
-  const closer = mode === 'podcast' ? 'And that wraps this one. Back to work.' : 'That is the recap.';
+    mode === "podcast"
+      ? "Welcome back to the session. Let us walk through what just happened."
+      : "Quick session recap.";
+  const closer =
+    mode === "podcast" ? "And that wraps this one. Back to work." : "That is the recap.";
   return `${opener} — So, what happened? — ${body}. — ${closer}`;
 }
 
 function monologueScript(mode: RecapMode, body: string): string {
   const opener =
-    mode === 'podcast' ? 'Here is a walkthrough of what happened in this session:' : 'Here is what happened:';
+    mode === "podcast"
+      ? "Here is a walkthrough of what happened in this session:"
+      : "Here is what happened:";
   return `${opener} ${body}.`;
 }
 
@@ -259,16 +272,13 @@ function monologueScript(mode: RecapMode, body: string): string {
  * // => "Here is what happened: fixed the token check (auth.ts), tests passed (12), and opened PR #42."
  * ```
  */
-export function buildRecapScript(
-  events: readonly SessionEvent[],
-  opts: RecapOptions = {},
-): string {
-  const style: NarrateStyle = opts.style ?? 'monologue';
-  const mode: RecapMode = opts.mode ?? 'summary';
+export function buildRecapScript(events: readonly SessionEvent[], opts: RecapOptions = {}): string {
+  const style: NarrateStyle = opts.style ?? "monologue";
+  const mode: RecapMode = opts.mode ?? "summary";
   const clauses = collectClauses(events);
   const body = joinClauses(clauses);
   if (clauses.length === 0) return emptyRecapScript(style);
-  if (style === 'podcast') return podcastScript(mode, body);
+  if (style === "podcast") return podcastScript(mode, body);
   return monologueScript(mode, body);
 }
 
@@ -278,7 +288,7 @@ export function buildRecapScript(
 
 /** A `ProviderAdapter | LocalRunner` has different `generate` arities — narrow it. */
 function isLocalRunner(p: ProviderAdapter | LocalRunner): p is LocalRunner {
-  return typeof (p as { capability?: unknown }).capability === 'string';
+  return typeof (p as { capability?: unknown }).capability === "string";
 }
 
 /** Speak `text` through either kind of resolved provider. */
@@ -288,7 +298,7 @@ async function speak(provider: ProviderAdapter | LocalRunner, text: string): Pro
     return;
   }
   // Egress provider (agent/byo): capability-first generate signature.
-  await provider.generate<{ readonly text: string }, void>('audio', { text });
+  await provider.generate<{ readonly text: string }, void>("audio", { text });
 }
 
 /**
@@ -309,24 +319,23 @@ export function createNarrator(deps: NarratorDeps = {}): Narrator {
   return {
     cascade,
     async narrate(text, opts = {}): Promise<NarrateResult> {
-      if (typeof text !== 'string' || text.length === 0) {
-        throw new TypeError('narrate() expects a non-empty text string');
+      if (typeof text !== "string" || text.length === 0) {
+        throw new TypeError("narrate() expects a non-empty text string");
       }
       // `style` is accepted for API symmetry; v0 routes all styles through the
       // single on-device voice. Future BYO-key voices will vary per style here.
       void opts.style;
       try {
         const resolved: ResolvedProvider = await cascade.resolve({
-          capability: 'audio',
+          capability: "audio",
           allowEgress: false, // v0: on-device only — offline, zero keys
         });
         await speak(resolved.provider, text);
         return { tier: resolved.tier, label: resolved.label };
       } catch (err) {
-        throw new TtsUnavailableError(
-          err instanceof Error ? err.message : String(err),
-          { cause: err },
-        );
+        throw new TtsUnavailableError(err instanceof Error ? err.message : String(err), {
+          cause: err,
+        });
       }
     },
   };
@@ -367,7 +376,7 @@ export async function recap(
   const sink = opts.deps?.notify ?? notify;
   try {
     sink(
-      makeEvent('task-done', 'viberadio', process.cwd(), {
+      makeEvent("task-done", "viberadio", process.cwd(), {
         summary: script,
         count: events.length,
       }),
