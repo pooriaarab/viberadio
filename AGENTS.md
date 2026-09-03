@@ -5,6 +5,13 @@
 Read both `.agents/brand.md` and `.agents/design.md` before changing public
 copy, product claims, CLI output, prototypes, or media.
 
+## CI runners
+
+This repo is public, so every job runs on GitHub-hosted `ubuntu-latest`.
+Public repos get those runners for free; Ubicloud bills by the minute.
+Private `pooriaarab/*` repos stay on Ubicloud. The Dell fleet is retired.
+Never re-add a self-hosted label. See pooriaarab/scripts#217.
+
 <!-- pr-standards:start -->
 
 ## Pull requests
