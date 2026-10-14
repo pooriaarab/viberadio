@@ -1,132 +1,75 @@
 # VibeRadio
 
-**Your agent's output as audio.**
+[![npm version](https://img.shields.io/npm/v/viberadio-fm)](https://www.npmjs.com/package/viberadio-fm)
+[![Downloads/month](https://img.shields.io/npm/dm/viberadio-fm)](https://www.npmjs.com/package/viberadio-fm)
+[![MIT license](https://img.shields.io/badge/license-MIT-blue)](https://opensource.org/license/mit)
 
-Turns an agentic coding session into something you can _listen to_ instead of read. Narration is the core — spoken monologue, two-host podcast, or reactive music — so you can follow a Claude Code / Codex / Gemini agent's progress while away from the desk, commuting, or multitasking. Reactive music (below) is one style among several.
+[Website](https://getvibe.dev/viberadio) · [Setup](#install) · [Library and MCP](#library-and-mcp)
 
-**Styles:** spoken monologue · two-host podcast · reactive music (lo-fi, synthwave, ambient, classical, 8-bit).
-**Modes:** ambient stream (narrates live as the agent works) · task summary (one message when a task finishes) · session recap (a longer podcast/musical wrap).
-**Timing:** sync/live (updates as the agent works) or async (after a turn/session) — user-configurable, per-hook. See [`spec.md`](spec.md).
+VibeRadio is an open-source text-to-speech CLI and library that turns supplied text or coding-session events into local spoken narration for developers.
 
-## Demo
-
-[▶ Watch the launch video](branding/launch-video.mp4) — four coding agents, four radios, each tuned to its own station.
-
-https://github.com/pooriaarab/viberadio/raw/main/branding/launch-video.mp4
-
-## Quick start
+## Install
 
 ```sh
-npm i -g viberadio-fm
+npm install -g viberadio-fm
+viberadio say "Build passed"
 ```
+
+Requires Node.js 18 or newer and a system speech tool: macOS `say`, Linux `espeak`, or Linux `spd-say`.
+Success: you hear “Build passed” and see a local-provider status message.
+If speech is unavailable, the CLI prints the text and a setup warning, then exits successfully.
+No API key or environment variables are required. The CLI does not load `.env` files.
+
+## Recap a session
 
 ```sh
-viberadio say "hello"                       # narrate a line now (on-device, offline)
-viberadio recap session.json                 # build a script from session events and speak it
-viberadio recap session.json --style podcast  # two-host podcast style
+printf '[{"kind":"tests-pass","count":12}]' | viberadio recap
+printf '[{"kind":"tests-pass","count":12}]' | viberadio recap --style podcast
 ```
 
-**Works offline, on-device, with zero keys.** v0 routes all narration through the
-on-device tier of the shared `@pooriaarab/vibe-core` model cascade — macOS `say` /
-Linux `espeak` / `spd-say` — so it runs with nothing configured and nothing leaves
-your machine. Bring-your-own-key TTS (ElevenLabs, OpenAI, …) plugs into the same
-cascade later; the `createNarrator()` seam is already there.
+The second command changes the script to host-labelled dialogue. Both styles use one system voice.
+You can also pass a JSON-array file: `viberadio recap session.json --mode podcast`.
 
-Use it as a **library** too:
+## Features and limits
 
-```ts
-import { narrate, recap, buildRecapScript } from 'viberadio-fm';
+- **Local speech:** the default audio path disables network egress and uses the system speech runner from `@pooriaarab/vibe-core`.
+- **Recap scripts:** formats milestone events; accepts `monologue` or `podcast` styles and `summary` or `podcast` modes.
+- **Library bridge:** successful library `recap()` appends a best-effort event for vibenotifications; CLI and MCP recaps call narration directly.
+- **Two MCP tools:** `narrate` speaks text; `recap` builds and speaks an event recap.
 
-await narrate('build passed');                              // speaks via on-device TTS
-const { script } = await recap(events, { style: 'podcast' }); // script + speak a session
-buildRecapScript(events);                                   // pure: events -> script, no audio
+```text
+text / event array -> narration script -> system speech tool -> audio
 ```
 
-### MCP
+There is no automatic agent-session watcher or background `start` command.
+Reactive music, cloud voices, distinct podcast voices, recording, visualizers, and a menubar application do not ship.
+This package does not include Claude Code, Codex, or Gemini adapters; pass text or events from your workflow.
+Source inspection confirms three system-tool choices through the shared runner. No physical audio output was verified for this rewrite.
 
-`viberadio mcp` starts a stdio MCP server exposing `narrate({ text, style? })` and
-`recap({ events, style?, mode? })` tools, so an agent can ask for an audio recap
-mid-session. Add it to your client's MCP config:
+## Library and MCP
+
+```js
+import { buildRecapScript, narrate, recap } from 'viberadio-fm';
+
+console.log(buildRecapScript([{ kind: 'tests-pass', count: 12 }]));
+await narrate('Build passed');
+await recap([{ kind: 'task-done', message: 'Fixed login' }]);
+```
+
+`buildRecapScript()` is pure and works without speech tools. `narrate()` throws `TtsUnavailableError` when audio cannot run.
+`createNarrator()` exposes dependency injection; TypeScript declarations ship with the package.
+Configure an MCP client with:
 
 ```json
-{
-  "mcpServers": {
-    "viberadio": { "command": "viberadio", "args": ["mcp"] }
-  }
-}
+{"mcpServers":{"viberadio":{"command":"viberadio","args":["mcp"]}}}
 ```
 
-## Why Build This
+CLI commands: `say`, `recap`, `mcp`, `help`/`--help`/`-h`, and `--version`/`-v`.
+The `say` command accepts `--style`/`-s`; `recap` also accepts `--mode`/`-m` and file or stdin input.
+Set `VIBERADIO_DEBUG=1` for speech-failure details.
 
-- Developers already listen to lo-fi while coding — this makes it reactive and personal
-- Extremely visual and shareable — imagine a tweet: "My code literally makes music"
-- No one has done reactive music for coding before — genuinely novel
-- Combines two massive communities: developers and lo-fi/music lovers
-- The demo video alone could go viral — watching music change as code is written
+## Status and links
 
-## Features
-
-- **Reactive soundtrack** — Music dynamically shifts based on coding events
-  - Commit → beat drop
-  - Test pass → melodic resolution
-  - Test fail → minor key shift
-  - Error/exception → dramatic tension
-  - Idle → ambient drone
-  - Deploy → triumphant crescendo
-- **Genre modes** — Lo-fi, synthwave, ambient, classical, 8-bit
-- **Visualizer** — Terminal-based audio visualizer that shows the music reacting
-- **Session recording** — Save your coding soundtrack as an MP3/WAV
-- **Spotify-style wrap** — Weekly "Your Vibe Radio Wrapped" with stats and generated playlist
-- **Collaborative mode** — Team coding sessions merge into one shared soundtrack
-- **Stream mode** — OBS integration for streaming your reactive coding music
-
-## Distribution
-
-- **CLI** — `viberadio start` — runs in background, hooks into git/terminal events
-- **npm package** — `npm install -g viberadio-fm`
-- **Claude Code hook** — Auto-starts when Claude Code session begins
-- **Claude Code skill** — `/viberadio` to control playback
-- **skills.sh** — Listed on skills.sh marketplace
-- **macOS menubar app** — Visual controls + now-playing display
-
-## Voices & models (bring your own, mix freely)
-
-Text-to-speech follows the shared `@vibe/core` cascade and is **mix-and-match**: use
-your agent's existing provider if it does audio → or a TTS key you supply
-(ElevenLabs, OpenAI, etc.) → or a **local/on-device voice** so it works with no key
-and no network. Different styles can use different models — e.g. an ElevenLabs voice
-for the monologue, two distinct voices for the podcast hosts, on-device TTS when
-offline. Per-style voice/model selection is a user setting.
-
-## Tech Stack
-
-- Node.js + TypeScript
-- TTS: `@vibe/core` cascade (agent provider → BYO key → on-device); Web Speech /
-  system TTS as the local tier
-- Tone.js / Web Audio API (reactive-music style)
-- Claude Code hooks + git/watcher (event detection, via `@vibe/core`)
-- Electron or Tauri (optional desktop app)
-
-## Prototype
-
-Interactive, self-contained UX prototype (no build, no network): open
-[`docs/prototype.html`](docs/prototype.html) in a browser. The "Speak this line"
-button uses your browser's on-device speech synthesis — real, offline narration.
-
-## Local-first
-
-Runs on your own machine. Nothing leaves it unless you opt a flow into a hosted
-provider; the on-device tier works fully offline. Enforced by the `@vibe/core`
-consent model.
-
-## Vibe Suite
-
-Part of the **Vibe Suite** — companion tools for agentic coding CLIs (Claude Code,
-Codex, Cursor, Gemini, Grok, pi, Kimi, and other harnesses). Ships as **CLI + npm
-package + MCP server**.
-
-## Revenue Potential
-
-- Free tier: basic narration + lo-fi mode, on-device voices
-- Pro: all styles, premium voices, recording, visualizer, Wrapped
-- Creator tier: OBS integration, custom sound/voice packs
+Version 0.2.4 is pre-1.0. Interfaces can change; this package provides no managed audio service.
+The repository's interactive prototype and launch video show product direction, not shipped functionality.
+[Report an issue](https://github.com/pooriaarab/viberadio/issues) · [Vibe Suite](https://getvibe.dev) · [MIT license](https://opensource.org/license/mit)

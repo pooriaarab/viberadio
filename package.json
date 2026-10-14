@@ -1,7 +1,7 @@
 {
   "name": "viberadio-fm",
   "version": "0.2.4",
-  "description": "Your agent's output as audio — spoken narration, monologue, two-host podcast, or reactive music. For Claude Code, Codex, Gemini, and other agentic CLIs. Local-first.",
+  "description": "Local text-to-speech CLI and MCP server for coding-session narration and recaps using macOS say, Linux espeak, or spd-say.",
   "type": "module",
   "license": "MIT",
   "author": "Pooria Arab",
@@ -46,15 +46,17 @@
   "keywords": [
     "vibe-suite",
     "viberadio",
-    "claude-code",
-    "codex",
-    "agentic",
     "cli",
     "mcp",
     "tts",
     "text-to-speech",
     "narration",
-    "local-first"
+    "offline",
+    "macos",
+    "linux",
+    "espeak",
+    "spd-say",
+    "session-recap"
   ],
   "publishConfig": {
     "access": "public"
