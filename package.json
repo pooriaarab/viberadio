@@ -1,6 +1,6 @@
 {
   "name": "viberadio-fm",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Local text-to-speech CLI and MCP server for coding-session narration and recaps using macOS say, Linux espeak, or spd-say.",
   "type": "module",
   "license": "MIT",
